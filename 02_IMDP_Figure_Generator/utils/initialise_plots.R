@@ -79,12 +79,25 @@ year_config <- list(
     include = c("Golden","Radium","Olsen","Yahk","Pacific",
                 "Osoyoos","Hwy 97c","Mt. Robson","Keremeos",
                 "Dawson Creek","Lower Mainland","Sumas Border",
-                "Cutts (Hwy 93)","Penticton","Douglas Crossing"),
+                "Cutts (Hwy 93)","Penticton","Douglas Crossing", "Cascade"),
     aside = c("Scheduled Inspection","Boat Launch - Okanagan",
               "Okanagan","Penticton Roving - Hwy 33",
               "Penticton Roving - Inspection Event"),
     leaflet = c("Golden","Olsen","Dawson Creek","Mt. Robson",
                 "Radium","Sumas (Huntington)","Penticton","Osoyoos",
+                "Lower Mainland","Yahk","Pacific","Keremeos",
+                "Hwy 97c","Cutts (Hwy 93)",
+                "Douglas Crossing")
+  ),
+  `2026` = list(
+    include = c("Golden","Olsen","Yahk","Pacific",
+                "Osoyoos","Hwy 97c","Mt. Robson","Keremeos",
+                "Dawson Creek","Lower Mainland","Sumas Border",
+                "Cutts (Hwy 93)","Penticton","Douglas Crossing"),
+    aside = c("Scheduled Inspection","Boat Launch - Okanagan",
+              "Okanagan","Penticton Roving - Hwy 33",
+              "Penticton Roving - Inspection Event"),
+    leaflet = c("Golden","Olsen","Dawson Creek","Mt. Robson","Sumas (Huntington)","Penticton","Osoyoos",
                 "Lower Mainland","Yahk","Pacific","Keremeos",
                 "Hwy 97c","Cutts (Hwy 93)",
                 "Douglas Crossing")
@@ -111,7 +124,7 @@ roving.stations <- c("Penticton","Lower Mainland",
 
 part.time.stations <- c("Sumas (Huntington)","Pacific","Cutts (Hwy 93)",
                         "Radium","Douglas Crossing",
-                        "Hwy 97c","Keremeos")
+                        "Hwy 97c","Keremeos", "Cascade")
 
 # -----------------------------------------------------
 # Paths
@@ -153,7 +166,11 @@ MusselFouledTracker <- switch(
                      "mussel_fouled_summary.xlsx"),
   "2025" = file.path(zqm.operations.folder,
                      "Watercraft Inspection Data/2025 data",
+                     "mussel_fouled_summary.xlsx"),
+  "2026" = file.path(zqm.operations.folder,
+                     "Watercraft Inspection Data/2026 data",
                      "mussel_fouled_summary.xlsx")
+  
 )
 
 # -----------------------------------------------------

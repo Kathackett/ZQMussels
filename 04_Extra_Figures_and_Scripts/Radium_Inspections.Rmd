@@ -1,0 +1,531 @@
+---
+title: "Radium Inspections"
+author: "John Phelan"
+date: "2026-08-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(DT)
+
+  source(here::here("02_IMDP_Figure_Generator/utils/initialise_plots.R"))
+
+#What is the sheet name of the destination regions for the mussel fouled tracking sheet?
+if(my.year != 2024){
+  MF_tracker_sheet = "DestRegions"
+}
+if(my.year == 2024){
+  MF_tracker_sheet = "Final List"
+}
+if(my.year == 2025){
+  MF_tracker_sheet = "Query result"
+}
+if(my.year == 2026){
+  MF_tracker_sheet = "Query result"
+}
+
+
+```
+
+```{r loadindata}
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "load_figure_data.R"))
+
+
+dat = dat |> 
+  mutate(Start_Time = as.POSIXct(
+    Start_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )) |> 
+  mutate(End_Time = as.POSIXct(
+    End_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  ))
+
+
+```
+
+```{r optional_pulling_out_boat_launches_from_comments}
+
+# this is redundant, right?
+source(here::here("02_IMDP_Figure_Generator", "utils", "getting_boat_launch_data.R"))
+```
+
+
+
+```{r change_station_names_and_establish_list_of_rovers}
+
+
+## rename these to be Douglas
+dat <- dat |>
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") %in% TRUE |
+        str_detect(Shift_End_Comment, "DFO") %in% TRUE
+      ) &
+      as_date(TimeOfInspection) %in% as.Date(c(
+        "2025-07-04", "2025-07-05", "2025-07-06",
+        "2025-07-18", "2025-07-19",
+        "2025-06-27", "2025-06-28",
+        "2025-08-28", "2025-08-29", "2025-08-30"
+      )) &
+      !(Station %in% "Pacific"),
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+test_all = dat_all |> 
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") %in% TRUE |
+        str_detect(Shift_End_Comment, "DFO") %in% TRUE
+      ) &
+      as_date(TimeOfInspection) %in% as.Date(c(
+        "2025-07-04", "2025-07-05", "2025-07-06",
+        "2025-07-18", "2025-07-19",
+        "2025-06-27", "2025-06-28",
+        "2025-08-28", "2025-08-29", "2025-08-30"
+      )) &
+      !(Station %in% "Pacific"),
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R"))
+```
+
+```{r 2025_station_changes}
+# This should be elsewhere, but here we are.
+# Douglas is Douglas Crossing, for now. It gets changed later
+
+lw <- dat |>
+  filter(Year == my.year) |>
+  filter(
+    str_detect(
+      Station,
+      "Lower Mainland.*(Outreach|Scheduled Inspection|Roving)|^Lower Mainland$"
+    ),
+    !str_detect(Station, "Douglas|Huntington")
+  )
+
+p_insp <- lw |>
+  mutate(the.month = month(TimeOfInspection, label = TRUE, abbr = FALSE)) |>
+  filter(!(the.month %in% c("March","November") & Year == 2024)) |>
+  group_by(the.month, Station) |>
+  summarise(Number_Insp = n(), .groups = "drop") |>
+  ggplot(aes(x = the.month, y = Number_Insp, fill = Station)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = Number_Insp),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 3
+  ) +
+  theme_classic() +
+  labs(x = "", y = "Watercraft Encounters (# of inspections)") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+p_effort <- lw |>
+  filter(!Station %in% rovers_to_drop) |>
+  mutate(the.month = month(TimeOfInspection, label = TRUE, abbr = FALSE)) |>
+  filter(!(the.month %in% c("March","November") & Year == 2024)) |>
+  select(the.month, Station, Shift_ID, Shift_hours) |>
+  distinct() |>
+  filter(Shift_hours > 0) |>
+  group_by(the.month, Station) |>
+  summarise(TotalEffort = sum(Shift_hours), .groups = "drop") |>
+  ggplot(aes(x = the.month, y = TotalEffort, fill = Station)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = round(TotalEffort, 0)),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 3
+  ) +
+  theme_classic() +
+  labs(x = "", y = "Total Effort (hours)") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+p5 <- ggarrange(p_insp, p_effort, ncol = 2, nrow = 1)
+
+
+if(!interactive()) {
+  # tmap_save(tm = map_1_tmap, filename = paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Map1_Stations_by_Type.jpg'), width = 7.6, height = 6.4, dpi = 300)
+  ggsave(paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Lower_Mainland_Outreach_Sch.jpg'), p5, width = 7.6, height = 6.4, dpi = 300)
+}
+
+
+# if(!interactive()) {
+#   # tmap_save(tm = map_1_tmap, filename = paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Map1_Stations_by_Type.jpg'), width = 7.6, height = 6.4, dpi = 300)
+#   ggsave(paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Penticton_Outreach_Sch.jpg'), p5, width = 7.6, height = 6.4, dpi = 300)
+# }
+
+
+### Okay lets fix some names
+
+dat = dat |> 
+  mutate(Station = case_when(
+      Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      TRUE ~ Station
+  ))
+
+dat_all = dat_all |> 
+  mutate(Station = case_when(
+      Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      TRUE ~ Station
+  ))
+
+
+
+```
+
+
+
+```{r dat_to_stations}
+source(here::here("02_IMDP_Figure_Generator", "utils", "dat_to_stations.R"))
+```
+
+
+```{r find_Douglas}
+
+blank_comments <- dat |>
+  filter(str_detect(Station, "Other|Emergency|Project|Lower Mainland - Scheduled Inspection|Lower Mainland Roving - Scheduled Inspection|Lower Mainland Roving - Douglas|Lower Mainland - Douglas"))
+
+
+## These are the Peace Arch
+dfo_comments = dat |>
+  filter(str_detect(Shift_Start_Comment, "DFO")|
+         str_detect(Shift_End_Comment, "DFO")) |>
+  filter(as_date(TimeOfInspection) %in% as.Date(c(
+    "2025-07-04",
+    "2025-07-05",
+    "2025-07-06",
+    "2025-07-18",
+    "2025-07-19",
+    "2025-06-27",
+    "2025-06-28",
+    "2025-08-28",
+    "2025-08-29",
+    "2025-08-30"
+
+
+
+  ))) |>
+  filter(Station != "Pacific")
+
+
+
+
+
+## The dates are 4 5 6 18 19 July 27 28 Jun
+
+douglas_dates <- blank_comments |>
+  filter(as_date(TimeOfInspection) %in% as.Date(c(
+    "2025-07-04",
+    "2025-07-05",
+    "2025-07-06",
+    "2025-07-18",
+    "2025-07-19",
+    "2025-06-27",
+    "2025-06-28",
+    "2025-08-28",
+    "2025-08-29",
+    "2025-08-30"
+
+
+
+  )))
+
+
+
+  )
+
+# datatable(
+#   douglas_dates |>
+#     select(Station, Watercraft_Risk_Assessment_ID, MusselsFound_Ind, High_Risk_AIS_Ind,
+#            High_Risk_Area_Ind, Start_Time, End_Time, TimeOfInspection,Shift_Start_Comment, Shift_End_Comment,
+#            General_Comment),
+#   options = list( pageLength = 10, scrollX = T, autowidth = T),
+#   rownames = F
+# )
+
+## For those dates - lets set the location to Douglas!
+
+
+```
+
+
+```{r radium_comments_2025}
+
+dat_all <- dat_all |>
+  mutate(
+    Station = if_else(
+      Station == "Other" &
+        (year(TimeOfInspection) == 2025) %in% TRUE &
+        (
+          str_detect(Shift_Start_Comment, "Woolridge") %in% TRUE |
+          str_detect(Shift_Start_Comment, "Osborne") %in% TRUE |
+          str_detect(Shift_Start_Comment, "Oddy") %in% TRUE
+        ),
+      "Radium",
+      Station
+    )
+  )
+
+dat_all |>
+  filter(Station == "Radium", year(TimeOfInspection) == 2025) |>
+  mutate(day = as_date(TimeOfInspection),
+         iso_week = isoweek(day)) |>
+  distinct(iso_week, day) |>
+  count(iso_week, name = "days_open") |>
+  summarise(avg_days_per_week = mean(days_open))
+
+ week_days = dat_all |>
+  filter(Station == "Radium", year(TimeOfInspection) == 2025) |>
+  mutate(
+    day = as_date(TimeOfInspection),
+    weekday = wday(day, label = TRUE, abbr = FALSE)
+  ) |>
+  distinct(day, weekday) |>
+  count(weekday, name = "n_days") |>
+  arrange(weekday) 
+
+write.xlsx(week_days, "C:/Users/JPHELAN/Documents/R_projects/long_term_projects/AIS_ZQMussels/output/Radium_days_of_week.xlsx")
+
+dat_all = dat_all |> 
+  mutate(Start_Time = as.POSIXct(
+    Start_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )) |> 
+  mutate(End_Time = as.POSIXct(
+    End_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  ))
+
+dates = dat_all |>
+  filter(Station == "Radium") |> 
+  filter(year(Start_Time) == 2025) |>
+  distinct(Start_Time) |>
+  arrange(Start_Time) |>
+  mutate(
+    Date = as_date(Start_Time),
+    Time = format(Start_Time, "%H:%M:%S")
+  ) |>
+  select(Date, Time)
+
+write.xlsx(dates, "C:/Users/JPHELAN/Documents/R_projects/long_term_projects/AIS_ZQMussels/output/Radium_shift_dates.xlsx")
+
+```
+
+
+## {.tabset}
+
+### Total Inspections by Year
+
+```{r get_robson, fig.height = 6, fig.width= 8}
+
+mt_robson = dat_all |> 
+  filter(Station == "Radium") |> 
+  filter(Year != 2026)
+
+by_year = mt_robson |> 
+  group_by(Year) |> 
+  summarise(`Total Inspections` = n()) 
+
+library(plotly)
+
+by_year$Year<-as.factor(by_year$Year)
+
+p <- ggplot(
+  by_year,
+  aes(x = Year, y = `Total Inspections`)
+) +
+  geom_col(fill = "steelblue") +
+  labs(
+    x = "Year",
+    y = "Total Inspections",
+    title = "Total Inspections by Year"
+  ) +
+  theme_minimal()
+
+ggplotly(p)
+
+by_year |> 
+  kableExtra::kable()
+
+```
+
+### High Risk Inspections by Year
+
+```{r high_risk, fig.height = 6, fig.width= 8}
+
+high_risk <- mt_robson |>
+  filter(High_Risk_AIS_Ind == TRUE) |> 
+  group_by(Year) |>
+  summarise(`Total Inspections` = n(), .groups = "drop")
+
+high_risk$Year<-as.factor(high_risk$Year)
+
+p <- ggplot(
+  high_risk,
+  aes(x = Year, y = `Total Inspections`)
+) +
+  geom_col(fill = "steelblue") +
+  labs(
+    x = "Year",
+    y = "Total Inspections",
+    title = "Total High Risk Inspections by Year"
+  ) +
+  theme_minimal()
+
+ggplotly(p)
+
+high_risk |> 
+  kableExtra::kable()
+
+```
+
+### Decontaminations by Year
+
+```{r decon, fig.height = 6, fig.width= 8}
+
+decon <- mt_robson |>
+  filter(Decontamination_Performed_Ind == TRUE) |> 
+  group_by(Year) |>
+  summarise(`Decontaminations Performed` = n(), .groups = "drop")
+
+decon$Year<-as.factor(decon$Year)
+
+p <- ggplot(
+  decon,
+  aes(x = Year, y = `Decontaminations Performed`)
+) +
+  geom_col(fill = "steelblue") +
+  labs(
+    x = "Year",
+    y = "Total Inspections",
+    title = "Decontaminations Performed by Year"
+  ) +
+  theme_minimal()
+
+ggplotly(p)
+
+decon |> 
+  kableExtra::kable()
+
+```
+
+
+### Very Complex by Year
+
+```{r very_complex, fig.height = 6, fig.width= 8}
+
+vcomplex <- mt_robson %>%
+  group_by(Year) %>%
+  summarise(
+    `Very Complex Watercraft` = sum(Very_Complex_Counter, na.rm = TRUE)
+  )
+
+vcomplex$Year<-as.factor(vcomplex$Year)
+
+p <- ggplot(
+  vcomplex,
+  aes(x = Year, y = `Very Complex Watercraft`)
+) +
+  geom_col(fill = "steelblue") +
+  labs(
+    x = "Year",
+    y = "Total Inspections",
+    title = "Very Complex Watercraft by Year"
+  ) +
+  theme_minimal()
+
+ggplotly(p)
+
+vcomplex |> 
+  kableExtra::kable()
+
+```
+
+
+### Source of High Risk Inspections
+
+```{r source, fig.height = 6, fig.width= 8}
+
+
+sources <- mt_robson |>
+  filter(High_Risk_AIS_Ind == T) |> 
+  filter(!is.na(Previous_Waterbody_1_Province_Or_State)) |>
+  count(Year, Previous_Waterbody_1_Province_Or_State)
+
+fig_source_dat <- sources |>
+  filter(
+    !is.na(Previous_Waterbody_1_Province_Or_State),
+    Previous_Waterbody_1_Province_Or_State != ""
+  )
+
+
+
+years <- sort(unique(fig_source_dat$Year))
+
+for (yr in years) {
+
+  p <- fig_source_dat |>
+    filter(Year == yr) |>
+    ggplot(
+      aes(
+        x = reorder(Previous_Waterbody_1_Province_Or_State, n),
+        y = n,
+        fill = Previous_Waterbody_1_Province_Or_State
+      )
+    ) +
+    geom_col() +
+    geom_text(
+      aes(label = n),
+      hjust = -0.1
+    ) +
+    coord_flip() +
+    labs(
+      x = NULL,
+      y = "Number of Watercraft",
+      title = paste("Source Provinces/States", yr)
+    ) +
+    theme_bw() +
+    theme(
+      legend.position = "none"
+    )
+
+  ggsave(
+    filename = paste0(
+      "C:/Users/JPHELAN/Documents/R_projects/long_term_projects/AIS_ZQMussels/images/Radium_High_Risk_sources_",
+      yr,
+      ".png"
+    ),
+    plot = p,
+    width = 8,
+    height = 6,
+    dpi = 300
+  )
+}
+
+```
+

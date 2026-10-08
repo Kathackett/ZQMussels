@@ -59,6 +59,9 @@ the_year = int(my_opts["year"].iloc[0])
 # Create the WebDriver instance outside the loop
 driver = webdriver.Chrome()
 
+#2025 dat 
+#url = "https://metabase-7068ad-prod.apps.silver.devops.gov.bc.ca/question/466-2025-mussel-summary-csv-export"
+# 2026 data 
 url = "https://metabase-7068ad-prod.apps.silver.devops.gov.bc.ca/question/510-2026-mussel-summary-csv-export"
 #url = sys.argv[2]
 url2 = "https://metabase-7068ad-prod.apps.silver.devops.gov.bc.ca/question/467-get-blowby-table"
@@ -145,9 +148,9 @@ for the_url in [url, url2]:
 
         # Wait for 3 minutes for download, just in case it takes that long.
         if the_url == url:
-            time.sleep(120)
+            time.sleep(30)
         else:
-            time.sleep(20)
+            time.sleep(30)
 
     # Wait until the download of this file is complete.
 

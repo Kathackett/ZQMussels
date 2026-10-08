@@ -144,7 +144,7 @@ dat_w_plugs = dat |>
 pl_of_plugs = dat_w_plugs |> 
   dplyr::count(Drainplug_Removed_at_Inspection_Ind) |> 
   dplyr::mutate(prop = 100*(n / sum(n))) |> 
-  dplyr::arrange(-Drainplug_Removed_at_Inspection_Ind) |> 
+  dplyr::arrange(Drainplug_Removed_at_Inspection_Ind) |>   # <-- flipped (was -Drainplug_Removed...)
   dplyr::mutate(Drainplug_Removed_at_Inspection_Ind = ifelse(Drainplug_Removed_at_Inspection_Ind,"Drainplug Removed","Drainplug not Removed")) |> 
   mutate(lab.ypos = cumsum(prop) - 0.5*prop) |> 
   ggplot(aes(x = "", y = prop, 
@@ -154,9 +154,11 @@ pl_of_plugs = dat_w_plugs |>
   geom_text_repel(aes(y = lab.ypos, x = 1.00, label = paste0(Drainplug_Removed_at_Inspection_Ind,"\n",round(prop,1),"%")),
                   color = "black", nudge_x = 0.7) + 
   theme_void() + 
-  # scale_fill_brewer(palette = "Dark2") + 
+  scale_fill_manual(values = c(
+    "Drainplug Removed" = "#1B9E77",      # was the "not removed" color
+    "Drainplug not Removed" = "#D95F02"   # was the "removed" color
+  )) +
   labs(fill = "Source") + 
-  ggtitle("Pull the Plug Compliance") +
   theme(legend.position = "none")+
   scale_x_discrete(labels = c(
     "Douglas Crossing*" = "Douglas*"
@@ -187,7 +189,7 @@ p16 = ggplot() +
   geom_text(
     data = p16_dat |> filter(Year == my.year),
     aes(x=the.month,
-        y=Number_HR+max(Number_HR)*0.2,
+        y=Number_HR+max(Number_HR)*0.05,
         label=round(Number_HR,0)),
     nudge_x = 0.20) +
   theme_classic() +
@@ -400,7 +402,6 @@ if(count_for_other_pie > 2){
     geom_text_repel(aes(y = lab.ypos, x = 1, label = paste0(REGION_N,"\n",round(prop,1),"%")), color = "black",nudge_x=1,force=1)+
     theme_void() + 
     theme(legend.position = "none") +
-    ggtitle("Destination Regions") +
     scale_fill_darkpal9() + 
     labs(fill = "Destination Region")
 }

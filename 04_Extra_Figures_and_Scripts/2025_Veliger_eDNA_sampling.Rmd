@@ -124,7 +124,7 @@ leaflet() |>
         "location_site_name",
         "date_collected_yyyy_mm_dd",
         "secchi_depth_m",
-        "water_temperature_c",
+        "water_temperature_u_00b0_c",
         "p_h_in_water_column",
         "zebra_quagga_mussels_veligers",
         "sampling_group_agency"

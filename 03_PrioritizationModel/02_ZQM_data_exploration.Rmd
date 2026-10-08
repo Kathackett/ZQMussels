@@ -132,7 +132,8 @@ if(my_opts$zqm_risk_climate_model == "ssp245"){
 # Query from EMS!
 ems_path = paste0(my_opts$base_dir, "../../long_term_projects/AIS_EMS/output/EMS.sqlite")
 conn = dbConnect(SQLite(), ems_path)
-df = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Calcium %' or PARAMETER like 'pH'")
+df = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Calcium %' or PARAMETER like 'pH'") |> 
+  dplyr::filter(LOCATION_TYPE %in% c("DITCH OR CULVERT","LAKE OR POND","MONITORING WELL","PROVINCIAL OBS WELL NETWORK","RIVER,STREAM OR CREEK"))
 # ems_temp = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Temperature%'")
 DBI::dbDisconnect(conn)
 

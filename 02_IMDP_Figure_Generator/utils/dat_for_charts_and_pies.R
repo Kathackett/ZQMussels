@@ -1,5 +1,9 @@
 
-dat_orig = dat
+#dat_orig = dat
+
+
+station_types = station_types |>
+  filter(!(Station == "Lower Mainland" & StationType == "Permanent"))
 
 dat <- dat |> 
   dplyr::mutate(Station = dplyr::case_when(
@@ -16,6 +20,8 @@ stations.to.include <- dplyr::case_when(
   TRUE ~ stations.to.include
 )
 
+stations.to.include = c(stations.to.include, "Cascade")
+
 old__station_types = station_types
   
 station_types = station_types |> 
@@ -23,9 +29,17 @@ station_types = station_types |>
     str_detect(Station,"Lower Mainland Roving") ~ "Lower Mainland",
     str_detect(Station,"Penticton Roving") ~ "Penticton",
     str_detect(Station,"Sumas Border") ~ "Sumas (Huntington)",
+    str_detect(Station,"Cascade Border") ~ "Cascade",
+    
     T ~ Station
   ))
 
+station_types = station_types |> 
+  mutate(StationType = case_when(
+    str_detect(Station,"Lower Mainland") ~ "Roving",
+    T~ StationType
+  )) |> 
+  distinct()
 
 
 fig3_data = dat |> 
@@ -482,10 +496,7 @@ p9.3 = dat |>
                 label=round(Number_Insp,0))) +
   theme_classic() +
   scale_x_continuous(breaks = seq(0,23,1)) +
-  labs(x = "", y = "Watercraft Encounters (# of inspections)")+
-  scale_x_discrete(labels = c(
-    "Douglas Crossing" = "Douglas"
-  ))
+  labs(x = "", y = "Watercraft Encounters (# of inspections)")
 
 p9.4 = dat |> 
   filter(High_Risk_AIS_Ind == T,
@@ -500,10 +511,7 @@ p9.4 = dat |>
                 label=round(Number_Insp,0))) +
   theme_classic() +
   scale_x_continuous(breaks = seq(0,23,1)) +
-  labs(x = "", y = "Watercraft Encounters (# of inspections)")+
-  scale_x_discrete(labels = c(
-    "Douglas Crossing" = "Douglas"
-  ))
+  labs(x = "", y = "Watercraft Encounters (# of inspections)")
 
 p11 = dat |> 
   filter(!is.na(Destination_Waterbody_1_Name)) |> 

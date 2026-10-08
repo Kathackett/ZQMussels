@@ -1,0 +1,776 @@
+---
+title: "Watercraft from White Sand river"
+author: "John Phelan"
+date: "2026-07-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(openxlsx)
+library(ggplot2)
+library(tidytext)
+library(DT)
+library(plotly)
+library(gt)
+
+
+source(here::here("02_IMDP_Figure_Generator/utils/initialise_plots.R"))
+
+my.year = 2026
+
+
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "load_figure_data.R"))
+
+
+
+dat = dat |> 
+  mutate(Start_Time = as.POSIXct(
+    Start_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )) |> 
+  mutate(End_Time = as.POSIXct(
+    End_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  ))
+
+## rename these to be Douglas
+dat <- dat |>
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+          str_detect(Shift_End_Comment, "DFO")
+      ) &
+        as_date(TimeOfInspection) %in% as.Date(c(
+          "2025-07-04", "2025-07-05", "2025-07-06",
+          "2025-07-18", "2025-07-19",
+          "2025-06-27", "2025-06-28",
+          "2025-08-28", "2025-08-29", "2025-08-30"
+        )) &
+        Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+dat_all = dat_all |> 
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+          str_detect(Shift_End_Comment, "DFO")
+      ) &
+        as_date(TimeOfInspection) %in% as.Date(c(
+          "2025-07-04", "2025-07-05", "2025-07-06",
+          "2025-07-18", "2025-07-19",
+          "2025-06-27", "2025-06-28",
+          "2025-08-28", "2025-08-29", "2025-08-30"
+        )) &
+        Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R"))
+
+
+### Okay lets fix some names
+
+dat = dat |> 
+  mutate(Station = case_when(
+    Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+    Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+    TRUE ~ Station
+  ))
+
+dat_all = dat_all |> 
+  mutate(Station = case_when(
+    Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+    Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+    TRUE ~ Station
+  ))
+
+# source(here::here("02_IMDP_Figure_Generator", "utils", "dat_to_stations.R"))
+
+stations_for_maps <- stations_for_maps |>
+  dplyr::filter(station_name != "Radium")
+station_labels = station_labels |> 
+  dplyr::filter(station_name != "Radium")
+
+
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "get_basemaps.R"))
+
+```
+
+# Watercraft from Assiniboine River {.tabset}
+
+```{r find_oregon}
+
+dat_3 = dat_all |>
+  filter(str_detect(
+    str_to_lower(Previous_Waterbody_1_Name),
+    "whitesand river"
+  ))
+
+write.csv(
+  dat_3,
+  here::here("output", "whitesand_river_zq.csv"),
+  row.names = FALSE
+)
+
+# dat_2 = dat_all |>
+#   filter(str_detect(
+#     str_to_lower(Previous_Waterbody_1_Name),
+#     "shellmouth"
+#   ))
+
+# dat_3 = dat_all |>
+#   filter(str_detect(
+#     str_to_lower(Previous_Waterbody_1_Name),
+#     "lake of the prairies"
+#   ))
+
+# dat_4 = dat_all |>
+#   filter(str_detect(
+#     str_to_lower(Previous_Waterbody_1_Other_Details),
+#     "prairies"
+#   ))
+
+
+dat_2020 = dat_3 |> 
+  filter(Year == 2020)
+
+dat_2019 <- dat_3 |> 
+  filter(Year == 2019)
+
+dat_2018 <- dat_3 |> 
+  filter(Year == 2018)
+
+dat_2017 <- dat_3 |> 
+  filter(Year == 2017)
+
+dat_2016 <- dat_3 |> 
+  filter(Year == 2016)
+
+dat_2021 <- dat_3 |>
+  filter(Year == 2021)
+
+dat_2022 <- dat_3 |>
+  filter(Year == 2022)
+
+dat_2023 <- dat_3 |>
+  filter(Year == 2023)
+
+dat_2024 <- dat_3 |>
+  filter(Year == 2024)
+
+dat_2025 <- dat_3 |>
+  filter(Year == 2025)
+
+dat_2026 <- dat_3 |>
+  filter(Year == 2026)
+
+
+# dat_2026 <- dat |>
+#   filter(str_detect(
+#     str_to_lower(Previous_Waterbody_1_Name),
+#     "lake of the prairies"
+#   )) |> 
+#   filter(Year == 2026)
+
+```
+
+## Summary Table 2016 - 2019
+
+
+```{r}
+summary_tbl <- tibble::tibble(
+  Year = c(2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026),
+  Watercraft = c(
+    nrow(dat_2016),
+    nrow(dat_2017),
+    nrow(dat_2018),
+    nrow(dat_2019),
+    nrow(dat_2020),
+    nrow(dat_2021),
+    nrow(dat_2022),
+    nrow(dat_2023),
+    nrow(dat_2024),
+    nrow(dat_2025),
+    nrow(dat_2026)
+  )
+)
+
+knitr::kable(
+  summary_tbl,
+  caption = paste(
+    "Watercraft identified as being from Assiniboine River.",
+    "Total records (2016 to 2026):",
+    nrow(dat_3)
+  )
+)
+```
+
+
+## Intercepting Station
+
+```{r}
+
+n_total <- nrow(dat_3)
+n_station <- sum(!is.na(dat_3$Station))
+
+tibble::tibble(
+  Metric = c("Total Assiniboine river watercraft",
+             "Station recorded"),
+  Count = c(n_total,
+            n_station),
+  Percent = c(
+    100,
+    100 * n_station / n_total
+  )
+) |>
+  gt() |>
+  fmt_number(Count, decimals = 0) |>
+  fmt_number(Percent, decimals = 1) |>
+  cols_label(
+    Percent = "% of total"
+  )
+
+```
+
+
+
+
+```{r plot_interceptm, fig.width= 10, fig.height=8 }
+
+dat_oregon_summary <-  dat_3 |>
+  filter(
+    !is.na(Station)
+  ) |>
+  count(Year, Station, sort = TRUE, )
+
+
+
+# ggplot(dat_oregon_summary,
+#        aes(x = reorder(Station, n), y = n)) +
+#   geom_col() +
+#   facet_wrap(~Year, scales = "free_y") +
+#   coord_flip() +
+#   labs(
+#     x = "Destination Waterbody",
+#     y = "Number of Records",
+#     title = "Destination Waterbodies for Oregon-Origin Boats"
+#   ) +
+#   theme_bw()
+
+dat_oregon_summary <- dat_oregon_summary |>
+  mutate(
+    Station = forcats::fct_reorder(Station, n, .fun = sum)
+  )
+
+ggplot(
+  dat_oregon_summary,
+  aes(x = Station, y = n)
+) +
+  geom_col(width = 0.8, fill = "steelblue") +
+  geom_text(
+    aes(label = n),
+    hjust = -0.1,
+    size = 3
+  ) +
+  facet_wrap(~Year) +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Number of Records",
+    title = "Intercepting Stations for Watercraft from Assiniboine river"
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.1))
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")
+  )
+
+datatable(
+  dat_oregon_summary,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    pageLength = 25,
+    scrollX = TRUE,
+    order = list(list(2, "desc"))  # sort by n descending
+  ),
+  caption = "Intercepting Stations for Watercraft from Assiniboine river"
+)
+
+```
+
+## Destination BC or not BC?
+
+```{r bc_question}
+
+dat_oregon_summary <- dat_3 |>
+  filter(!is.na(Destination_Waterbody_1_Province_Or_State)) |>
+  count(Year, Destination_Waterbody_1_Province_Or_State)
+
+n_total <- nrow(dat_3)
+n_state <- sum(!is.na(dat_3$Destination_Waterbody_1_Province_Or_State))
+
+tibble::tibble(
+  Metric = c(
+    "Total Assiniboine river watercraft",
+    "Destination province/state recorded"
+  ),
+  Count = c(
+    n_total,
+    n_state
+  ),
+  Percent = c(
+    100,
+    100 * n_state / n_total
+  )
+) |>
+  gt() |>
+  fmt_number(Count, decimals = 0) |>
+  fmt_number(Percent, decimals = 1) |>
+  cols_label(
+    Percent = "% of total"
+  ) |>
+  tab_header(
+    title = md("**Destination Province/State Information**")
+  )
+
+```
+
+
+
+```{r}
+
+
+
+
+p <- ggplot(
+  dat_oregon_summary,
+  aes(
+    x = factor(Year),
+    y = n,
+    fill = Destination_Waterbody_1_Province_Or_State,
+    text = paste0(
+      "State/Province: ", Destination_Waterbody_1_Province_Or_State,
+      "<br>Year: ", Year,
+      "<br>Count: ", n
+    )
+  )
+) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  labs(x = "Year", y = "Count", fill = "State / Province",
+       title = "Destined Province/State for watercraft from Assiniboine river") +
+  theme_minimal()
+
+ggplotly(p, tooltip = "text")
+
+
+```
+
+
+
+```{r }
+## Previous Waterbodies
+# dat_oregon_summary <- dat_3 |>
+#   filter(
+#     !is.na(Previous_Waterbody_1_Name)
+#   ) |>
+#   count(Year, Previous_Waterbody_1_Name, sort = TRUE, )
+# 
+# dat_oregon_summary <- dat_oregon_summary |>
+#   mutate(
+#     Previous_Waterbody_1_Name =
+#       fct_reorder(Previous_Waterbody_1_Name, n, .fun = sum)
+#   )
+# 
+# n_total <- nrow(dat_3)
+# n_previous_waterbody <- sum(!is.na(dat_3$Previous_Waterbody_1_Name))
+# 
+# tibble::tibble(
+#   Metric = c(
+#     "Total Lake of the Prairies watercraft",
+#     "Previous waterbody recorded"
+#   ),
+#   Count = c(
+#     n_total,
+#     n_previous_waterbody
+#   ),
+#   Percent = c(
+#     100,
+#     100 * n_previous_waterbody / n_total
+#   )
+# ) |>
+#   gt() |>
+#   fmt_number(Count, decimals = 0) |>
+#   fmt_number(Percent, decimals = 1) |>
+#   cols_label(
+#     Percent = "% of total"
+#   ) |>
+#   tab_header(
+#     title = md("**Previous Waterbody Information**")
+#   )
+# 
+# # ggplot(dat_oregon_summary,
+# #        aes(x = reorder(Station, n), y = n)) +
+# #   geom_col() +
+# #   facet_wrap(~Year, scales = "free_y") +
+# #   coord_flip() +
+# #   labs(
+# #     x = "Destination Waterbody",
+# #     y = "Number of Records",
+# #     title = "Destination Waterbodies for Oregon-Origin Boats"
+# #   ) +
+# #   theme_bw()
+
+```
+
+
+
+```{r previous_waterbodies,  fig.width= 10, fig.height=8 }
+# ggplot(
+#   dat_oregon_summary,
+#   aes(x = Previous_Waterbody_1_Name, y = n)
+# ) +
+#   geom_col(width = 0.8, fill = "steelblue") +
+#   geom_text(
+#     aes(label = n),
+#     hjust = -0.1,
+#     size = 3
+#   ) +
+#   facet_wrap(~Year) +
+#   coord_flip() +
+#   labs(
+#     x = NULL,
+#     y = "Number of Records",
+#     title = "Previous Waterbodies for Watercraft from Lake of the Prairies"
+#   ) +
+#   scale_y_continuous(
+#     expand = expansion(mult = c(0, 0.1))
+#   ) +
+#   theme_minimal(base_size = 12) +
+#   theme(
+#     panel.grid.major.y = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     strip.text = element_text(face = "bold"),
+#     plot.title = element_text(face = "bold")
+#   )
+# 
+# datatable(
+#   dat_oregon_summary,
+#   rownames = FALSE,
+#   filter = "top",
+#   options = list(
+#     pageLength = 25,
+#     scrollX = TRUE,
+#     order = list(list(2, "desc"))  # sort by n descending
+#   ),
+#   caption = "Previous Waterbodies for Watercraft from Lake of the Prairies"
+# )
+
+```
+
+
+
+## Destination of watercraft from the Assiniboine river
+
+
+
+```{r plot_destination_waterbody_by_year,  fig.width= 10, fig.height=14  }
+
+n_total <- nrow(dat_3)
+n_destination_waterbody <- sum(!is.na(dat_3$Destination_Waterbody_1_Name))
+
+tibble::tibble(
+  Metric = c(
+    "Total Assiniboine river watercraft",
+    "Destination waterbody recorded"
+  ),
+  Count = c(
+    n_total,
+    n_destination_waterbody
+  ),
+  Percent = c(
+    100,
+    100 * n_destination_waterbody / n_total
+  )
+) |>
+  gt() |>
+  fmt_number(Count, decimals = 0) |>
+  fmt_number(Percent, decimals = 1) |>
+  cols_label(
+    Percent = "% of total"
+  ) |>
+  tab_header(
+    title = md("**Destination Waterbody Information**")
+  )
+
+dat_oregon_summary <- dat_3 |>
+  filter(
+    !is.na(Destination_Waterbody_1_Name)
+  ) |>
+  count(Year, Destination_Waterbody_1_Name, sort = TRUE, )
+
+dat_oregon_summary <- dat_oregon_summary |>
+  mutate(
+    Destination_Waterbody_1_Name =
+      fct_reorder(Destination_Waterbody_1_Name, n, .fun = sum)
+  )
+
+ggplot(
+  dat_oregon_summary,
+  aes(
+    x = Destination_Waterbody_1_Name,
+    y = n
+  )
+) +
+  geom_col(width = 0.8, fill = "steelblue") +
+  geom_text(
+    aes(label = n),
+    hjust = -0.1,
+    size = 3
+  ) +
+  facet_wrap(~Year, scales = "free_y", ncol = 1)+
+  coord_flip() +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15))
+  ) +
+  labs(
+    x = NULL,
+    y = "Number of Records",
+    title = "Destination Waterbodies for Assiniboine river - Origin Boats"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+      axis.text.y = element_text(size = 8),
+      panel.spacing = unit(1, "lines"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")
+  )
+
+datatable(
+  dat_oregon_summary,
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    pageLength = 25,
+    scrollX = TRUE,
+    order = list(list(2, "desc"))  # sort by n descending
+  ),
+  caption = "Destination Waterbodies for Assiniboine river - Origin Boats"
+)
+
+```
+
+
+
+```{r plot2 , fig.width= 10, fig.height=8 }
+## Destination of watercraft from Oregon - Top 10
+# dat_top <- dat_3 |>
+#   filter(
+#     !is.na(Destination_Waterbody_1_Name)
+#   ) |>
+#   count(Year, Destination_Waterbody_1_Name) |>
+#   group_by(Year) |>
+#   slice_max(n, n = 10) |>
+#   ungroup()
+# 
+# ggplot(
+#   dat_top,
+#   aes(
+#     x = reorder_within(Destination_Waterbody_1_Name, n, Year),
+#     y = n
+#   )
+# ) +
+#   geom_col(width = 0.8, fill = "steelblue") +
+#   geom_text(
+#     aes(label = n),
+#     hjust = -0.1,
+#     size = 3
+#   ) +
+#   facet_wrap(~Year, scales = "free_y") +
+#   scale_x_reordered() +
+#   coord_flip() +
+#   scale_y_continuous(
+#     expand = expansion(mult = c(0, 0.15))
+#   ) +
+#   labs(
+#     x = NULL,
+#     y = NULL,
+#     title = "Top 10 Destination Waterbodies for Lake of the Prairies-Origin Boats"
+#   ) +
+#   theme_minimal(base_size = 12) +
+#   theme(
+#     panel.grid.major.y = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     strip.text = element_text(face = "bold"),
+#     plot.title = element_text(face = "bold")
+#   )
+# 
+# dat_top_table <- dat_top |>
+#   rename(
+#     Year = Year,
+#     Destination_Waterbody = Destination_Waterbody_1_Name,
+#     Records = n
+#   ) |>
+#   arrange(Year, desc(Records))
+# 
+# datatable(
+#   dat_top_table,
+#   rownames = FALSE,
+#   filter = "top",
+#   extensions = "Buttons",
+#   options = list(
+#     dom = "Bfrtip",
+#     buttons = c("copy", "csv", "excel"),
+#     pageLength = 30,
+#     order = list(list(0, "asc"), list(2, "desc"))
+#   ),
+#   caption = "Top 10 Destination Waterbodies by Year for Lake of the Prairies-Origin Boats"
+# )
+
+```
+
+
+
+
+```{r waterbody_destinations}
+## Specific Previous Waterbodies
+# library(tibble)
+# 
+# waterbody_list <- tibble(
+#   waterbody = c(
+#     "Billy Chinook",
+#     "Prineville Reservoir",
+#     "Crescent Lake",
+#     "Lake of the Woods",
+#     "Cultus Lake",
+#     "Odell Lake"
+#   )
+# )
+# 
+# waterbody_list |>
+#   knitr::kable(
+#     col.names = "Waterbody",
+#     caption = "Previous Waterbodies filtered by: "
+#   )
+# 
+# dat_oregon |> 
+#   filter(
+#     tolower(Previous_Waterbody_1_Name) %in% tolower(waterbody_list)) |>
+#   select(Year, Watercraft_Risk_Assessment_ID, Previous_Waterbody_1_Name, Destination_Waterbody_1_Name) |> 
+#   knitr::kable()
+  
+
+```
+
+
+
+```{r plot3,  fig.width= 10, fig.height=8  }
+## Destination by Major City - Top 10
+# dat_top <- dat_all |>
+#   filter(
+#     Previous_Waterbody_1_Province_Or_State == "OR",
+#     Year %in% c(2023, 2024, 2025),
+#     !is.na(Destination_Major_City)
+#   ) |>
+#   filter(Destination_Major_City != "None") |> 
+#   count(Year, Destination_Major_City, sort = TRUE, ) |> 
+#   group_by(Year) |>
+#   slice_max(n, n = 10) |>
+#   ungroup()
+# 
+# ggplot(
+#   dat_top,
+#   aes(
+#     x = reorder_within(Destination_Major_City, n, Year),
+#     y = n
+#   )
+# ) +
+#   geom_col(width = 0.8, fill = "steelblue") +
+#   geom_text(
+#     aes(label = n),
+#     hjust = -0.1,
+#     size = 3
+#   ) +
+#   facet_wrap(~Year, scales = "free_y") +
+#   scale_x_reordered() +
+#   coord_flip() +
+#   scale_y_continuous(
+#     expand = expansion(mult = c(0, 0.15))
+#   ) +
+#   labs(
+#     x = NULL,
+#     y = NULL,
+#     title = "Top 10 Destination Major Cities for Oregon-Origin Boats"
+#   ) +
+#   theme_minimal(base_size = 12) +
+#   theme(
+#     panel.grid.major.y = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     strip.text = element_text(face = "bold"),
+#     plot.title = element_text(face = "bold")
+#   )
+# 
+# dat_top_table <- dat_top |>
+#   group_by(Year) |>
+#   arrange(desc(n), .by_group = TRUE) |>
+#   mutate(Rank = row_number()) |>
+#   ungroup() |>
+#   rename(
+#     Major_City = Destination_Major_City,
+#     Records = n
+#   ) |>
+#   select(Year, Rank, Major_City, Records)
+# 
+# datatable(
+#   dat_top_table,
+#   rownames = FALSE,
+#   filter = "top",
+#   extensions = "Buttons",
+#   options = list(
+#     dom = "Bfrtip",
+#     buttons = c("copy", "csv", "excel"),
+#     pageLength = 30,
+#     order = list(list(0, "asc"), list(1, "asc"))
+#   ),
+#   caption = "Top 10 Destination Major Cities by Year for Oregon-Origin Boats"
+# )
+
+```
+```{r writetocsv}
+
+write.csv(
+  dat_3,
+  here::here("output", "source_Assiniboine_river.csv"),
+  row.names = FALSE
+)
+
+```
+

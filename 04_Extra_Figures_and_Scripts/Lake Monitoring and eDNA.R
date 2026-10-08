@@ -120,24 +120,67 @@ bc_stations_basemap_trimmed <- terra::trim(bc_stations_basemap_white)
 raster_bbox_df <- as.list(terra::ext(bc_stations_basemap_trimmed))
 bc_bound = bcmaps::bc_bound() |> st_transform(4326)
 
+lab_sf <- lab_sf |>
+  mutate(
+    sampling_type = "Plankton Tow"
+  )
 
-# Distinct shapes for 12 sampling groups
-shape_values <- c(
-  "CLSS" = 0,"OASISS" =  1,"ONA" = 2,"ISCBC" =  3,"EKISC" =  5,
-  "CSISS" =  6,"CKISS" =  14,"MOE" =  8,"FVISS" =  15,"ONA" =  16,"MLWRS" =  17,"ISCMV" =  18
-)
+edna_results_sf <- edna_results_sf |>
+  mutate(
+    `sampling group/agency` = "eDNA",
+    sampling_type = "eDNA"
+  )
 
-# names(shape_values) <- unique(lab_sf$`sampling group/agency`)
+pylet_locations_sf <- pylet_locations_sf |>
+  mutate(
+    `sampling group/agency` = "eDNA",
+    sampling_type = "eDNA"
+  )
 
 lab_sf <- lab_sf |>
   mutate(
-    sampling_label = paste(`sampling group/agency`, "(Plankton)")
+    sampling_label = paste0(`sampling group/agency`, " (Plankton)")
   )
 
-names(shape_values) <- paste(
-  names(shape_values),
-  "(Plankton)"
+# Combine all data
+all_points <- bind_rows(
+  lab_sf,
+  edna_results_sf,
+  pylet_locations_sf
 )
+
+shape_values <- c(
+  "CLSS (Plankton)"  = 21,  # circle
+  "OASISS (Plankton)"= 22,  # square
+  "ONA (Plankton)"   = 24,  # triangle
+  "ISCBC (Plankton)" = 23,  # diamond
+  "EKISC (Plankton)" = 25,  # upside triangle
+  "CSISS (Plankton)" = 21,
+  "CKISS (Plankton)" = 22,
+  "MOE (Plankton)"   = 24,
+  "FVISS (Plankton)" = 23,
+  "MLWRS (Plankton)" = 25,
+  "ISCMV (Plankton)" = 21
+)
+
+agency_cols <- c(
+  "CLSS (Plankton)"  = "#1a1a1a",
+  "OASISS (Plankton)"= "#8c1a6a",
+  "ONA (Plankton)"   = "#d4d4d4",
+  "ISCBC (Plankton)" = "#7b2d00",
+  "EKISC (Plankton)" = "#f5a623",
+  "CSISS (Plankton)" = "#4e9ac7",
+  "CKISS (Plankton)" = "#c0e080",
+  "MOE (Plankton)"   = "#0a3d62",
+  "FVISS (Plankton)" = "#48c774",
+  "MLWRS (Plankton)" = "#2c2c8a",
+  "ISCMV (Plankton)" = "#e8d44d"
+)
+# 
+# lab_sf <- lab_sf |>
+#   mutate(
+#     sampling_label = `sampling group/agency`
+#   )
 
 map_9_ggplot <- ggplot() +
   
@@ -155,46 +198,64 @@ map_9_ggplot <- ggplot() +
     linewidth = 1
   ) +
   
-  # Plankton tow sampling points
+  # Plankton sampling
   geom_sf(
     data = lab_sf,
-    aes(shape = sampling_label),
+    aes(
+      shape = sampling_label,
+      fill  = sampling_label
+    ),
     color = "black",
-    fill = "white",
-    size = 4,
-    stroke = 0.8
+    size  = 6,
+    stroke = 0.9,
+    alpha = 0.9
   ) +
   
   # eDNA points
   geom_sf(
     data = edna_results_sf,
-    aes(shape = "eDNA sampling"),
-    color = "black",
-    size = 7,
-    stroke = 1.2
+    aes(
+      shape = "eDNA sampling",
+      fill  = "eDNA sampling"
+    ),
+    color = "#5C5553",
+    size  = 5,
+    stroke = 1.5
   ) +
   
   geom_sf(
     data = pylet_locations_sf,
-    aes(shape = "eDNA sampling"),
-    color = "black",
-    size = 7,
-    stroke = 1.2
+    aes(
+      shape = "eDNA sampling",
+      fill  = "eDNA sampling"
+    ),
+    color = "#5C5553",
+    size  = 5,
+    stroke = 1.5
   ) +
   
-  # Shape scale
+  # Unified shape + fill legend — both scales MUST share the same name
+  # and the same set of labels for ggplot to merge them into one legend
   scale_shape_manual(
-    name = "Sampling Type",
+    name   = "Sampling Group (Type)",
     values = c(
       shape_values,
-      "eDNA sampling" = 4  # X symbol
+      "eDNA sampling" = 4
+    )
+  ) +
+  
+  scale_fill_manual(
+    name   = "Sampling Group (Type)",
+    values = c(
+      agency_cols,
+      "eDNA sampling" = NA   # shape 4 (X) has no fill; NA keeps the key aligned
     )
   ) +
   
   # Map extent
   coord_sf(
-    xlim = c(raster_bbox_df$xmin, raster_bbox_df$xmax),
-    ylim = c(raster_bbox_df$ymin, raster_bbox_df$ymax),
+    xlim   = c(raster_bbox_df$xmin, raster_bbox_df$xmax),
+    ylim   = c(raster_bbox_df$ymin, raster_bbox_df$ymax),
     expand = FALSE
   ) +
   
@@ -205,26 +266,106 @@ map_9_ggplot <- ggplot() +
   ggthemes::theme_map() +
   
   theme(
-    legend.position = c(0.97, 0.97),
+    legend.position      = c(0.97, 0.97),
     legend.justification = c("right", "top"),
     
     legend.background = element_rect(
-      fill = scales::alpha("white", 0.85),
+      fill  = scales::alpha("white", 0.85),
       color = "black"
     ),
     
-    legend.key = element_blank(),
-    
-    legend.title = element_text(size = 11),
-    legend.text = element_text(size = 9),
-    
-    legend.key.size = unit(0.8, "cm")
+    legend.key       = element_blank(),
+    legend.title     = element_text(size = 11),
+    legend.text      = element_text(size = 9),
+    legend.key.size  = unit(0.8, "cm")
   )
 
 map_9_ggplot
 
   # tmap_save(tm = map_9_tmap, filename = 'Map9_Map_of_Lake_Sampling.jpg', width = 7.6, height = 6.4, dpi = 300)
-ggsave(filename = './images/Map9_Map_of_Lake_Sampling_andeDNA.jpg',map_9_ggplot, width = 12, height = 10, dpi = 300)
+ggsave(filename = './images/Map9_Map_of_Lake_Sampling_andeDNA.jpg',map_9_ggplot, width = 14, height = 12, dpi = 300)
+
+
+## now I need Waterbody - region - sampling group - result
+veliger_result <- lab_sf |>
+  select(
+    Waterbody,
+    `sampling group/agency`,
+    `Zebra/Quagga mussels veligers`,
+    geometry
+  ) |>
+  st_join(
+    nr_regions |>
+      select(Region)
+  ) |>
+  st_drop_geometry() |>
+  mutate(Waterbody = str_squish(Waterbody)) |>
+  filter(!is.na(Region)) |>
+  group_by(Waterbody) |>
+  summarise(
+    Region = paste(unique(Region), collapse = ", "),
+    `Sampling Group/Agency` = paste(unique(`sampling group/agency`), collapse = ", "),
+    `Zebra/Quagga mussels veligers` = paste(
+      unique(`Zebra/Quagga mussels veligers`),
+      collapse = ", "
+    ),
+    .groups = "drop"
+  )
+
+openxlsx::write.xlsx(
+  veliger_result,
+  "./02_IMDP_Figure_Generator/output/veliger_sample_locations.xlsx"
+)
+
+edna_1 <- edna_results_sf |>
+  select(
+    `Waterbody Name`,
+    `Result Zebra Mussels`,
+    `Result Quagga Mussels`,
+    geometry
+  ) |>
+  mutate(
+    Result = case_when(
+      `Result Zebra Mussels` == "Positive" |
+        `Result Quagga Mussels` == "Positive" ~ "Positive",
+      `Result Zebra Mussels` == "Negative" &
+        `Result Quagga Mussels` == "Negative" ~ "Negative",
+      TRUE ~ NA_character_
+    )
+  ) |> 
+  select(-c(`Result Zebra Mussels`, `Result Quagga Mussels`))
+
+
+
+edna_2 = pylet_locations_sf |> 
+  # we need waterbody names for each of the geoms in this list, from waterb
+  select(Lake, geometry) |> 
+  rename(`Waterbody Name` = Lake) |> 
+  mutate(`Waterbody Name` = paste0(`Waterbody Name`, " Lake"))
+
+edna_2$Result = "Negative"
+
+edna_full = bind_rows(edna_1,edna_2)
+
+edna_full <- edna_full |>
+  st_join(
+    nr_regions |>
+      select(Region)
+  ) |> 
+  select(`Waterbody Name`, Region, Result) |> 
+  st_drop_geometry() |> 
+  distinct()
+
+edna_full = edna_full |> 
+  mutate(
+    Result = dplyr::recode(
+        Result,
+      "Negative" = "No Detection"
+    )
+  )
+
+
+openxlsx::write.xlsx(edna_full, "./02_IMDP_Figure_Generator/output/edna_sample_locations.xlsx")
 
 # 
 # lab_sf
@@ -293,6 +434,16 @@ library(openxlsx)
 write.xlsx(full_data,"output/sample_locations2025.xlsx")
 
 
+#--------------------
+# Get the unique waterbodies sampled across these
+full_data |> 
+  filter(Type == "Plankton Tow") |> 
+  group_by(Waterbody) |> 
+  summarise(count = n())
+
+full_data |> 
+  group_by(Type) |> 
+  summarise(count = n())
 
 #-----------------------
 # we need spatial files for the samples taken - which ones are relevant?
@@ -441,3 +592,12 @@ map_10_ggplot
 
 # tmap_save(tm = map_9_tmap, filename = 'Map9_Map_of_Lake_Sampling.jpg', width = 7.6, height = 6.4, dpi = 300)
 ggsave(filename = './images/Funded_Map.jpg',map_10_ggplot, width = 7.6, height = 6.4, dpi = 300)
+
+
+overlap_waterbodies <- full_data %>%
+  group_by(Waterbody) %>%
+  summarise(types = list(unique(Type)), .groups = "drop") %>%
+  filter(sapply(types, function(x) all(c("Plankton Tow", "eDNA") %in% x))) %>%
+  pull(Waterbody)
+
+overlap_waterbodies

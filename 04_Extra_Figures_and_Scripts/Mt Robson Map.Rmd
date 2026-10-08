@@ -1,0 +1,589 @@
+---
+title: "Mt Robson Waterbody Map"
+author: "John Phelan"
+date: "2026-07-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE
+)
+
+library(tidyverse)
+library(sf)
+library(dplyr)
+library(leaflet)
+library(leaflet.extras)
+library(bcdata)
+
+lan_root = "//SFP.IDIR.BCGOV/S140/S40203/WFC AEB/General/2 SCIENCE - Invasives/"
+
+wbs<-readRDS(paste0(lan_root,"AIS_R_Projects/LargeDataFiles/named_lakes_and_rivers.rds"))
+
+named_wbs = c("Portal Lake", "Yellowhead Lake", "Moose Lake", "Kinney Lake", "Witney Lake",
+                           "Fraser River", "Yellowhead River", "Moose River", "Robson River",
+              "Yellowhead Creek", "Berg Lake")
+
+wbsFiltered<- wbs |> 
+  filter( waterbody %in% named_wbs)
+
+rm(wbs)
+#setdiff(named_wbs, unique(wbsFiltered$waterbody))
+
+my.external.data.folder = "Z:/2 SCIENCE - Invasives/AIS_R_Projects/CMadsen_Wdrive/Projects/ZQMussels/data/"
+stations = sf::read_sf(paste0(my.external.data.folder,"inspection_stations.gpkg"))
+
+robson_loc <- stations |>
+  dplyr::filter(station_name == "Mt. Robson")
+
+# we are missing some - lets find them
+# st_test = bcdc_query_geodata('92344413-8035-4c08-b996-65a9b3f62fca') |>
+#   filter(GNIS_NAME == "Fraser River") |>
+#   collect() |>
+#   sf::st_zm() |>
+#   dplyr::group_by(BLUE_LINE_KEY) |>
+#   dplyr::summarise() |>
+#   sf::st_buffer(dist = 10) |>
+#   dplyr::mutate(type = 'stream') |>
+#   st_transform(4326)
+# 
+# leaflet() %>%
+#   addProviderTiles(providers$CartoDB.Positron) %>%
+# 
+#   # Sampled 2025 TRUE
+#   addPolygons(
+#     data = st_test,
+#     color = "blue",
+#     fillColor = "blue",
+#     fillOpacity = 0.9,
+#     stroke = TRUE,
+#     weight = 1,
+#     popup = ~paste0(
+#       "<b>BLK:</b> ", BLUE_LINE_KEY, "<br>"
+#     ),
+#     group = "Sampled 2025: TRUE"
+#   )
+
+
+
+robson_river = bcdc_query_geodata('92344413-8035-4c08-b996-65a9b3f62fca') |>
+  filter(BLUE_LINE_KEY == 356364407) |>
+  collect() |>
+  dplyr::group_by(BLUE_LINE_KEY) |>
+  dplyr::summarise() |>
+  sf::st_buffer(dist = 10) |>
+  dplyr::mutate(`Waterbody Name` = "Robson River",
+                `Watershed Name` = NA,
+                wb_type = "river") |>
+  sf::st_transform(4326)
+
+wbsFiltered <- wbsFiltered |> 
+  bind_rows(robson_river)
+
+
+fraser_river = bcdc_query_geodata('92344413-8035-4c08-b996-65a9b3f62fca') |>
+  filter(BLUE_LINE_KEY == 356364114) |>
+  collect() |>
+  dplyr::group_by(BLUE_LINE_KEY) |>
+  dplyr::summarise() |>
+  sf::st_buffer(dist = 10) |>
+  dplyr::mutate(`Waterbody Name` = "Fraser River",
+                `Watershed Name` = NA,
+                wb_type = "river") |>
+  sf::st_transform(4326)
+
+wbsFiltered <- wbsFiltered |> 
+  bind_rows(robson_river, fraser_river)
+
+
+# ## Fraser is broken - lets get a fresh one
+# fraser_river = bcdc_query_geodata('freshwater-atlas-rivers') |>
+#     filter(!is.na(GNIS_NAME_1)) |>
+#     filter(GNIS_NAME_1 == "Fraser River") |> 
+#     collect() |>
+#     dplyr::select(waterbody = GNIS_NAME_1, watershed = WATERSHED_GROUP_ID, BLUE_LINE_KEY, FWA_WATERSHED_CODE) |>
+#     dplyr::group_by(waterbody, watershed, BLUE_LINE_KEY, FWA_WATERSHED_CODE) |>
+#     dplyr::summarise(.groups = 'drop') |>
+#     dplyr::mutate(wb_type = "river") |> 
+#   st_transform(4326)
+# 
+# 
+# # drop the old Fraser river
+# wbsFiltered <- wbsFiltered |> 
+#   filter(waterbody != "Fraser River")
+# 
+# 
+# wbsFiltered <- wbsFiltered |> 
+#   bind_rows(fraser_river)
+
+
+#unique(wbsFiltered$waterbody)
+
+## Cannot find yellowhead river
+
+wbs_all = wbsFiltered
+
+library(sf)
+library(dplyr)
+
+# Make sure both layers use a projected CRS in metres
+wbs_proj <- st_transform(wbs_all, 3005)      # BC Albers
+robson_proj <- st_transform(robson_loc, 3005)
+
+# 200 km buffer around Mt. Robson
+robson_buffer <- st_buffer(robson_proj, dist = 200000)
+
+# Features within 200 km
+wbsFiltered <- wbs_proj |>
+  st_intersection(robson_buffer)
+
+```
+
+
+
+
+```{r parks_protected_areas_across_BC, fig.width = 9, fig.height = 6}
+
+
+if(!file.exists("data/parks_prot_areas_bcdata_layer.rds")){
+  parks = bcdc_query_geodata('terrestrial-protected-areas-representation-by-ecosection-parc-') |>
+    collect()
+  # Note: variable PROTECTED_AREA_TYPE has levels PROVINCIAL PARK (1038), NGO CONSERVANCY (603), etc.
+
+  saveRDS(parks, file = "data/parks_prot_areas_bcdata_layer.rds")
+} else {
+  parks = readRDS("data/parks_prot_areas_bcdata_layer.rds")
+}
+
+# parks |> 
+#   sf::st_drop_geometry() |> 
+#   dplyr::count(PROTECTED_AREA_TYPE, sort = T) |> 
+#   knitr::kable()
+
+
+parksFiltered <- parks |>
+  filter(lengths(st_intersects(geometry, robson_buffer)) > 0) |> 
+  filter(PROTECTED_AREA_TYPE == "PROVINCIAL PARK")
+
+
+```
+
+```{r map_fixes}
+
+# Ensure WGS84 for Leaflet
+map_data <- st_transform(wbsFiltered, 4326)
+
+map_data <- map_data |>
+  mutate(
+    popup = paste0("<b>", waterbody, "</b>")
+)
+
+pal <- colorFactor(
+  c("orange", "steelblue"),
+  domain = map_data$wb_type
+)
+
+parksFiltered<- st_transform(parksFiltered, 4326)
+```
+
+
+```{r sus_species}
+
+# Susceptible fish species
+species_names <- c(
+  "Bull Trout", "Sockeye Salmon", "Cutthroat Trout", "Coho Salmon",
+  "Rainbow Trout", "Chinook Salmon", "Mountain Whitefish",
+  "Atlantic Salmon", "Brown Trout", "Brook Trout",
+  "Westslope Cutthroat Trout", "Steelhead",
+  "Lake Whitefish", "Round Whitefish", "Pygmy Whitefish"
+)
+
+# Read occurrence records
+species_occs <- lapply(species_names, function(sp) {
+  sf::read_sf(
+    here::here(
+      "..",
+      "AIS_WhirlingDiseaseMonitoring",
+      "data",
+      paste0(gsub(" ", "_", sp), "_occurrences.gpkg")
+    )
+  )
+})
+
+names(species_occs) <- gsub(" ", "_", species_names)
+
+fish_occs <- dplyr::bind_rows(species_occs, .id = "species")
+
+# Match CRS to your waterbodies
+fish_occs <- st_transform(fish_occs, st_crs(map_data))
+
+
+map_data <- map_data |>
+  st_make_valid()
+
+fish_occs <- fish_occs |>
+  st_make_valid()
+
+wbs_spp <- st_join(map_data, fish_occs)
+
+# One record per waterbody
+wb_species <- wbs_spp |>
+  group_by(waterbody) |>
+  summarise(
+    sus_spp = paste(sort(unique(species[!is.na(species)])), collapse = ", "),
+    .groups = "drop"
+  ) |>
+  mutate(
+    sus_spp = ifelse(sus_spp == "", NA_character_, sus_spp)
+  ) |>
+  st_drop_geometry()
+
+# Join species back onto map_data
+map_data <- map_data |>
+  left_join(wb_species, by = "waterbody")
+
+```
+
+
+
+# {.tabset}
+
+
+ 
+
+
+
+## Waterbody Map
+
+
+```{r map_locations, fig.width = 8, fig.height=10}
+leaflet(map_data) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+
+  # Waterbodies
+  addPolygons(
+    fillColor = ~pal(wb_type),
+    color = ~pal(wb_type),
+    weight = 2,
+    fillOpacity = 1,
+    label = ~waterbody,
+    group = "Waterbodies",
+    popup = ~paste0(
+      "<b>", waterbody, "</b><br>",
+      "<b>Type:</b> ", wb_type, "<br>",
+      "<b>Susceptible species:</b> ",
+      ifelse(is.na(sus_spp), "None recorded", sus_spp)
+    )
+  ) |>
+
+  # Mt. Robson location
+  addCircleMarkers(
+    data = robson_loc,
+    radius = 8,
+    color = "black",
+    fillColor = "lightgrey",
+    fillOpacity = 1,
+    stroke = TRUE,
+    weight = 2,
+    popup = ~station_name,
+    label = ~station_name,
+    group = "Mt. Robson"
+  ) |>
+
+  # Protected Areas
+  addPolygons(
+    data = parksFiltered,
+    fillColor = "darkgreen",
+    color = "darkgreen",
+    weight = 2,
+    fillOpacity = 0.3,
+    label = ~PROTECTED_AREA_TYPE,
+    popup = ~PROTECTED_AREA_TYPE,
+    group = "Provincial Parks"
+  ) |>
+
+  # Legend
+  addLegend(
+    pal = pal,
+    values = map_data$wb_type,
+    title = "Waterbody type"
+  ) |>
+
+  # Layer control
+  addLayersControl(
+    overlayGroups = c("Provincial Parks", "Mt. Robson"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+## make kable of waterbodytable
+map_data |>
+  st_drop_geometry() |>
+  dplyr::select(waterbody, wb_type, sus_spp) |>
+  knitr::kable(
+    caption = "Waterbody details",
+    col.names = c("Waterbody", "Type", "Susceptible Species")
+  )
+  
+
+```
+
+
+The waterbodies listed are:
+
+ - Portal Lake
+ - Yellowhead Lake
+ - Moose Lake
+ - Kinney Lake - Witney Lake
+ - Fraser River
+ - Yellowhead River
+ - Moose River
+ - Robson River
+ - Yellowhead Creek
+ 
+The susceptible salmonids included are:
+
+- Bull Trout
+- Sockeye Salmon
+- Cutthroat Trout
+- Coho Salmon
+- Rainbow Trout
+- Chinook Salmon
+- Mountain Whitefish
+- Atlantic Salmon
+- Brown Trout
+- Brook Trout
+- Westslope Cutthroat Trout
+- Steelhead
+- Lake Whitefish
+- Round Whitefish
+- Pygmy Whitefish
+
+## Watercraft Inspection Data
+
+```{r get_waterbody_use, fig.height= 6, fig.width=8, message=FALSE, warning=FALSE, results='hide'}
+
+
+source(here::here("02_IMDP_Figure_Generator/utils/initialise_plots.R"))
+
+my.year = 2026
+
+
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "load_figure_data.R"))
+
+
+
+dat = dat |> 
+  mutate(Start_Time = as.POSIXct(
+    Start_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )) |> 
+  mutate(End_Time = as.POSIXct(
+    End_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  ))
+
+## rename these to be Douglas
+dat <- dat |>
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+          str_detect(Shift_End_Comment, "DFO")
+      ) &
+        as_date(TimeOfInspection) %in% as.Date(c(
+          "2025-07-04", "2025-07-05", "2025-07-06",
+          "2025-07-18", "2025-07-19",
+          "2025-06-27", "2025-06-28",
+          "2025-08-28", "2025-08-29", "2025-08-30"
+        )) &
+        Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+dat_all = dat_all |> 
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+          str_detect(Shift_End_Comment, "DFO")
+      ) &
+        as_date(TimeOfInspection) %in% as.Date(c(
+          "2025-07-04", "2025-07-05", "2025-07-06",
+          "2025-07-18", "2025-07-19",
+          "2025-06-27", "2025-06-28",
+          "2025-08-28", "2025-08-29", "2025-08-30"
+        )) &
+        Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R"))
+
+
+### Okay lets fix some names
+
+dat = dat |> 
+  mutate(Station = case_when(
+    Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+    Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+    TRUE ~ Station
+  ))
+
+dat_all = dat_all |> 
+  mutate(Station = case_when(
+    Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+    Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+    Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+    Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+    TRUE ~ Station
+  ))
+
+# source(here::here("02_IMDP_Figure_Generator", "utils", "dat_to_stations.R"))
+
+stations_for_maps <- stations_for_maps |>
+  dplyr::filter(station_name != "Radium")
+station_labels = station_labels |> 
+  dplyr::filter(station_name != "Radium")
+
+
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "get_basemaps.R"))
+
+library(stringr)
+
+
+pattern <- str_c(map_data$waterbody, collapse = "|")
+
+pattern <- str_to_lower(pattern)
+
+dat_3 <- dat_all |>
+  filter(
+    str_to_lower(Destination_Waterbody_1_Name) %in%
+      str_to_lower(map_data$waterbody)
+  )
+
+dat_3 <- dat_3[!is.na(dat_3$Destination_Waterbody_1_Name),]
+
+
+
+ggplot(dat_3, aes(x = Year)) +
+  geom_bar(fill = "steelblue") +
+  facet_wrap(~ Destination_Waterbody_1_Name, scales = "free_y") +
+  scale_x_continuous(breaks = 2015:2026) +
+  labs(
+    title = "Watercraft Inspections by Year and Destination Waterbody",
+    x = "Year",
+    y = "Number of Inspections"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold")
+  )
+
+```
+
+## Angler Survey Results
+
+```{r anglerSurvey, fig.width= 8, fig.height=6}
+
+# Read occurrence records
+fishing_survey <- readRDS(
+    here::here(
+      "..",
+      "AIS_WhirlingDiseaseMonitoring",
+      "data",
+      "fishing_days_by_waterbody_and_watershed_w_BLK.rds"
+    )
+  )
+
+
+# Join fishing_days onto map_data, dropping fishing_survey's geometry first
+map_data_joined <- map_data |>
+  left_join(
+    fishing_survey |>
+      st_drop_geometry() |>
+      select(waterbody, watershed, fishing_days),
+    by = c("waterbody", "watershed")
+  )
+
+# Colour palette based on fishing_days
+pal <- colorNumeric(
+  palette = c(
+    "#08306B",  # dark blue
+    "#2171B5",
+    "#6BAED6",
+    "#FDB863",
+    "#E66101"   # strong orange
+  ),
+  domain = map_data_joined$fishing_days,
+  na.color = "grey80"
+)
+
+# leaflet(map_data_joined) |>
+#   addProviderTiles(providers$CartoDB.Positron) |>
+#   addPolygons(
+#     fillColor = ~pal(fishing_days),
+#     fillOpacity = 0.8,
+#     color = "grey",
+#     weight = 1,
+#     label = ~paste0(waterbody, ": ", fishing_days, " fishing days"),
+#     highlightOptions = highlightOptions(
+#       weight = 2,
+#       color = "black",
+#       bringToFront = TRUE
+#     )
+#   ) |>
+#   addCircleMarkers(
+#     data = robson_loc,
+#     radius = 8,
+#     color = "black",
+#     fillColor = "lightgrey",
+#     fillOpacity = 1,
+#     stroke = TRUE,
+#     weight = 2,
+#     popup = ~station_name,
+#     label = ~station_name,
+#     group = "Mt. Robson"
+#   ) |>
+#   addLegend(
+#     pal = pal,
+#     values = ~fishing_days,
+#     title = "Fishing Days",
+#     position = "bottomright"
+#   ) 
+
+DT::datatable(
+  map_data_joined |>
+    st_drop_geometry() |>
+    select(waterbody, watershed, fishing_days) |>
+    distinct() |>
+    arrange(desc(fishing_days)),
+  colnames = c(
+    "Waterbody",
+    "Watershed",
+    "Fishing Days"
+  ),
+  rownames = FALSE,
+  filter = "top",
+  options = list(
+    pageLength = 15
+  )
+)
+
+```
+

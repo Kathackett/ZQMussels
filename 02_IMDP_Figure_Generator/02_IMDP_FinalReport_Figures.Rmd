@@ -22,15 +22,14 @@ if(my.year == 2024){
 if(my.year == 2025){
   MF_tracker_sheet = "Query result"
 }
-
+if(my.year == 2026){
+  MF_tracker_sheet = "Query result"
+}
 
 
 ```
 
-
-
-
-```{r load in data}
+```{r loadindata}
 
 source(here::here("02_IMDP_Figure_Generator", "utils", "load_figure_data.R"))
 
@@ -52,7 +51,7 @@ dat = dat |>
 
 ```{r optional_pulling_out_boat_launches_from_comments}
 
-
+# this is redundant, right?
 source(here::here("02_IMDP_Figure_Generator", "utils", "getting_boat_launch_data.R"))
 ```
 
@@ -66,8 +65,8 @@ dat <- dat |>
   mutate(
     Station = if_else(
       (
-        str_detect(Shift_Start_Comment, "DFO") |
-        str_detect(Shift_End_Comment, "DFO")
+        str_detect(Shift_Start_Comment, "DFO") %in% TRUE |
+        str_detect(Shift_End_Comment, "DFO") %in% TRUE
       ) &
       as_date(TimeOfInspection) %in% as.Date(c(
         "2025-07-04", "2025-07-05", "2025-07-06",
@@ -75,7 +74,7 @@ dat <- dat |>
         "2025-06-27", "2025-06-28",
         "2025-08-28", "2025-08-29", "2025-08-30"
       )) &
-      Station != "Pacific",
+      !(Station %in% "Pacific"),
       "Douglas Crossing",
       Station
     )
@@ -85,8 +84,8 @@ dat_all = dat_all |>
   mutate(
     Station = if_else(
       (
-        str_detect(Shift_Start_Comment, "DFO") |
-        str_detect(Shift_End_Comment, "DFO")
+        str_detect(Shift_Start_Comment, "DFO") %in% TRUE |
+        str_detect(Shift_End_Comment, "DFO") %in% TRUE
       ) &
       as_date(TimeOfInspection) %in% as.Date(c(
         "2025-07-04", "2025-07-05", "2025-07-06",
@@ -94,11 +93,74 @@ dat_all = dat_all |>
         "2025-06-27", "2025-06-28",
         "2025-08-28", "2025-08-29", "2025-08-30"
       )) &
-      Station != "Pacific",
+      !(Station %in% "Pacific"),
       "Douglas Crossing",
       Station
     )
   )
+
+if (my.year == 2025) {
+  dat <- dat |>
+    mutate(
+      Station = if_else(
+        Station == "Other" &
+          str_detect(Shift_Start_Comment, "Woolridge|Osborne|Oddy") %in% TRUE,
+        "Radium",
+        Station
+      )
+    )
+}
+
+dat_all <- dat_all |>
+  mutate(
+    Station = if_else(
+      Station == "Other" &
+        year(TimeOfInspection) == 2025 &
+        str_detect(Shift_Start_Comment, "Woolridge|Osborne|Oddy") %in% TRUE,
+      "Radium",
+      Station
+    )
+  )
+
+if(!file.exists(here::here("02_IMDP_Figure_Generator", "data", "dfo_2025_emails.xlsx"))){
+  source(here::here("02_IMDP_Figure_Generator", "utils", "get_2025_dfo.R"))
+}else{
+  email_excel = read.xlsx(here::here("02_IMDP_Figure_Generator", "data", "dfo_2025_emails.xlsx")) |> 
+    mutate(TimeOfInspection = as.POSIXct(
+    TimeOfInspection * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )
+  )
+}
+
+## We check where the dfo emails are, then change those stations to be Douglas (which is Peace Arch)
+# do it for everything - the date check with the watercraft inspection id should not allow any unwanted changes
+dat = dat |>
+  mutate(is_dfo_match = paste(Watercraft_Risk_Assessment_ID, as.Date(TimeOfInspection)) %in%
+           paste(email_excel$Watercraft_Risk_Assessment_ID, as.Date(email_excel$TimeOfInspection))) |>
+  mutate(Station = if_else(is_dfo_match, "Douglas", Station)) |> 
+  select(-is_dfo_match)
+
+dat_all = dat_all |> 
+  mutate(is_dfo_match = paste(Watercraft_Risk_Assessment_ID, as.Date(TimeOfInspection)) %in%
+           paste(email_excel$Watercraft_Risk_Assessment_ID, as.Date(email_excel$TimeOfInspection))) |>
+  mutate(Station = if_else(is_dfo_match, "Douglas", Station)) |> 
+  select(-is_dfo_match)
+
+dat_hr = dat_hr |> 
+  mutate(is_dfo_match = paste(Watercraft_Risk_Assessment_ID, as.Date(TimeOfInspection)) %in%
+           paste(email_excel$Watercraft_Risk_Assessment_ID, as.Date(email_excel$TimeOfInspection))) |>
+  mutate(Station = if_else(is_dfo_match, "Douglas", Station)) |> 
+  select(-is_dfo_match)
+  
+dat_mf = dat_mf |> 
+    mutate(is_dfo_match = paste(Watercraft_Risk_Assessment_ID, as.Date(TimeOfInspection)) %in%
+           paste(email_excel$Watercraft_Risk_Assessment_ID, as.Date(email_excel$TimeOfInspection))) |>
+  mutate(Station = if_else(is_dfo_match, "Douglas", Station)) |> 
+  select(-is_dfo_match)
+
+
 
 source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R"))
 ```
@@ -108,7 +170,7 @@ source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R")
 # Douglas is Douglas Crossing, for now. It gets changed later
 
 lw <- dat |>
-  filter(Year == 2025) |>
+  filter(Year == my.year) |>
   filter(
     str_detect(
       Station,
@@ -180,6 +242,7 @@ dat = dat |>
       Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
       Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
       Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Cascade Border" ~ "Cascade",
       TRUE ~ Station
   ))
 
@@ -191,6 +254,7 @@ dat_all = dat_all |>
       Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
       Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
       Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Cascade Border" ~ "Cascade",
       TRUE ~ Station
   ))
 
@@ -203,73 +267,6 @@ dat_all = dat_all |>
 ```{r dat_to_stations}
 source(here::here("02_IMDP_Figure_Generator", "utils", "dat_to_stations.R"))
 ```
-
-
-```{r find_Douglas}
-
-blank_comments <- dat |>
-  filter(str_detect(Station, "Other|Emergency|Project|Lower Mainland - Scheduled Inspection|Lower Mainland Roving - Scheduled Inspection|Lower Mainland Roving - Douglas|Lower Mainland - Douglas"))
-
-
-### These are the Peace Arch 
-# dfo_comments = dat |> 
-#   filter(str_detect(Shift_Start_Comment, "DFO")|
-#          str_detect(Shift_End_Comment, "DFO")) |> 
-#   filter(as_date(TimeOfInspection) %in% as.Date(c(
-#     "2025-07-04",
-#     "2025-07-05",
-#     "2025-07-06",
-#     "2025-07-18",
-#     "2025-07-19",
-#     "2025-06-27",
-#     "2025-06-28",
-#     "2025-08-28",
-#     "2025-08-29",
-#     "2025-08-30"
-#     
-#     
-#     
-#   ))) |> 
-#   filter(Station != "Pacific")
-
-
-
-
-
-## The dates are 4 5 6 18 19 July 27 28 Jun
-
-# douglas_dates <- blank_comments |>
-#   filter(as_date(TimeOfInspection) %in% as.Date(c(
-#     "2025-07-04",
-#     "2025-07-05",
-#     "2025-07-06",
-#     "2025-07-18",
-#     "2025-07-19",
-#     "2025-06-27",
-#     "2025-06-28",
-#     "2025-08-28",
-#     "2025-08-29",
-#     "2025-08-30"
-#     
-#     
-#     
-#   )))
-
-
-# datatable(
-#   douglas_dates |>
-#     select(Station, Watercraft_Risk_Assessment_ID, MusselsFound_Ind, High_Risk_AIS_Ind,
-#            High_Risk_Area_Ind, Start_Time, End_Time, TimeOfInspection,Shift_Start_Comment, Shift_End_Comment,
-#            General_Comment),
-#   options = list( pageLength = 10, scrollX = T, autowidth = T),
-#   rownames = F
-# )
-
-## For those dates - lets set the location to Douglas!
-
-
-```
-
 
 
 
@@ -318,17 +315,53 @@ source(here::here("02_IMDP_Figure_Generator", "utils", "get_exec_summary.R"))
 ```
 
 
+```{r request_for_inspection_data}
+
+# request = dat_all |> 
+#   dplyr::select(Year, Watercraft_Risk_Assessment_ID, MusselsFound_Ind, High_Risk_AIS_Ind, Station, Watercraft_Has_Drainplugs_Ind, Drainplug_Removed_at_Inspection_Ind, Previous_Waterbody_1_Name, Previous_Waterbody_1_Closest_City, Previous_Waterbody_1_Province_Or_State, Destination_Waterbody_1_Name, Destination_Waterbody_1_Closest_City, Destination_Waterbody_1_Province_Or_State)
+# 
+# Sys.sleep(2)
+# write.csv(request, "C:/Users/JPHELAN/Documents/R_projects/long_term_projects/AIS_ZQMussels/data/inspection_data_request.csv")
+
+```
+
+
+
 ### Map 1. Inspection Stations by Type
 
 
 ```{r map1_plotting, fig.width=800}
 
 
+## radium should not be in stations in 2026
 
+# stations_for_maps <- stations_for_maps |>
+#   dplyr::filter(station_name != "Radium")
+# station_labels = station_labels |> 
+#   dplyr::filter(station_name != "Radium")
+
+stations_for_maps <-stations_for_maps |> 
+  mutate(station_type = case_when(
+    station_name == "Cascade" ~ "Part-time Inspection Crew",
+    T ~ station_type
+  ))
 
 source(here::here("02_IMDP_Figure_Generator", "utils", "get_basemaps.R"))
 
 library(ggpattern)
+
+stations_for_maps$station_type <- factor(
+  stations_for_maps$station_type,
+  levels = c(
+    "Permanent Inspection Station",
+    "Part-time Inspection Station",
+    "Roving Inspection Crew"
+  )
+)
+
+## I should just drop Cascade here - it needs to be in some plots, but not maps
+
+
 
 p1 <- ggplot() +
   tidyterra::geom_spatraster_rgb(
@@ -359,7 +392,7 @@ p1 <- ggplot() +
   ) +
 
   geom_sf_label(
-    data = station_labels,
+    data = station_labels ,
     aes(label = map_label),
     size = 3,
     fill = "white",
@@ -368,7 +401,7 @@ p1 <- ggplot() +
   ) +
 
   scale_pattern_manual(
-    name = "2025 Watercraft\nInspection Stations",
+    name = paste0(my.year," Watercraft\nInspection Stations"),
 
     values = c(
       "Permanent Inspection Station" = "none",
@@ -378,7 +411,7 @@ p1 <- ggplot() +
   ) +
 
   scale_fill_manual(
-    name = "2025 Watercraft\nInspection Stations",
+    name = paste0(my.year," Watercraft\nInspection Stations"),
 
     values = c(
       "Permanent Inspection Station" = "#0072B2",
@@ -438,6 +471,15 @@ if(!interactive()) {
 }
 ```
 
+```{r}
+dat |> 
+  group_by(Station) |> 
+  summarise(Inspections = n()) |> 
+  arrange(desc(Inspections)) |> 
+  kableExtra::kable()
+```
+
+
 
 ```{r optional_map_of_inspection_stations_for_current_year_of_operations}
 # Usually, we are drafting the IMDP report for the previous year's season while the current year's season is active. We might need a map of the current year's stations.
@@ -445,8 +487,8 @@ if((my_opts$year+1) %in% unique(dat_all$Year)){
   
   p2<-ggplot()+
     tidyterra::geom_spatraster_rgb(data = bc_stations_basemap_colour)+
-    geom_sf(data = st_buffer(stations_for_maps_this_year,20000), aes(fill = as.factor(station_type)))+
-        geom_sf_label(data = station_labels_this_year, aes(label = map_label),
+    geom_sf(data = st_buffer(stations_for_maps_this_year ,20000), aes(fill = as.factor(station_type)))+
+        geom_sf_label(data = station_labels_this_year , aes(label = map_label),
               size = 3, fill = "white", color = "black", label.size = 0.1)+
     scale_fill_manual(name = "2025 Watercraft \n Inspection Stations", values = c("Permanent Inspection Station" = "lightblue", "Roving Inspection Crew" = "purple", "Part-time Inspection Station" = "yellow"))+
     ggspatial::annotation_scale()+
@@ -571,7 +613,7 @@ p5 = ggplot() +
     aes(fill = factor(num_insp_b), size = log(num_insp_b)+1),
     shape = 21, color = "black"
   ) +
-  geom_sf_label(data = station_labels_roving, aes(label = map_label),
+  geom_sf_label(data = station_labels_roving , aes(label = map_label),
               size = 3, fill = "white", color = "black", label.size = 0.1)+
   scale_fill_manual(
     name = paste0(my.year, ' Inspections \nby Roving Crew'),
@@ -776,7 +818,7 @@ ggsave(paste0(my.external.output.folder,"/GIS Maps and Excel Figures/ExcelFigure
 
 p4
 
-if(!interactive()) {
+if(!interactive()) { 
 ggsave("Fig4_Total_Jurisdictions_by_Station.jpg",p4)
 }
 ```
@@ -1071,11 +1113,11 @@ if(!interactive()) {
 
 ### Brief Aside: Roving Stations whose location is unknown (not boat launch nor scheduled inspection)
 ```{r}
-boatlaunch_dat |> 
-  dplyr::select(Station,TimeOfInspection,High_Risk_AIS_Ind,Shift_Start_Comment,likely_lake) |> 
-  dplyr::filter(is.na(likely_lake)) |> 
-  dplyr::select(Station,Shift_Start_Comment) |> 
-  knitr::kable()
+# boatlaunch_dat |> 
+#   dplyr::select(Station,TimeOfInspection,High_Risk_AIS_Ind,Shift_Start_Comment,likely_lake) |> 
+#   dplyr::filter(is.na(likely_lake)) |> 
+#   dplyr::select(Station,Shift_Start_Comment) |> 
+#   knitr::kable()
 ```
 
 ### Brief Aside: Breakdown of High-risk / Low-risk for Scheduled Inspections
@@ -1217,7 +1259,8 @@ if(!interactive()) {
 p16
 
 if(!interactive()) {
-ggsave("Fig16_Total_HR_Inspections_3_year_spread.jpg",p16)
+ggsave("Fig16_Total_HR_Inspections_3_year_spread.jpg",p16,
+         width = 8, height = 4)
 }
 ```
 
@@ -1532,8 +1575,10 @@ map_home_res_high_risk_ggplot = ggplot() +
   theme(
   plot.margin = margin(0, 0, 0, 0),  # top, right, bottom, left
   #plot.margin = margin(10, 80, 10, 10), # top, right, bottom, left
-  legend.position = c(0.97, 0.03),
-  legend.justification = c("right", "bottom")
+  # legend.position = c(0.97, 0.03),
+  # legend.justification = c("right", "bottom")
+  legend.position = c(0.97, 0.97),
+  legend.justification = c("right", "top")
 )
 
 map_home_res_high_risk_ggplot
@@ -1621,18 +1666,33 @@ single_member_bins = dest_wb_hr |>
 # Add word 'watercraft' to bin labels
 
 dest_wb_hr = dest_wb_hr |> 
-  dplyr::mutate(bin_label_precise = case_when(
-    bin_label %in% single_member_bins ~ as.character(highrisk_Counter),
-    T ~ bin_label
-  )) |> 
-  dplyr::mutate(bin_label_precise = paste0(bin_label_precise,' watercraft'))
+  dplyr::mutate(
+    bin_label_precise = case_when(
+      bin_label %in% single_member_bins ~ as.character(highrisk_Counter),
+      TRUE ~ bin_label
+    ),
+    bin_label_precise = paste0(
+      bin_label_precise,
+      if_else(bin_label_precise == "1", " inspection", " inspections")
+    )
+  )
+
+# FIX: lock in the correct numeric bin order as factor levels before it's
+# used anywhere as a fill aesthetic or legend label. Without this, ggplot
+# sorts bin_label_precise alphabetically as a string, which puts values like
+# "21 inspections" ahead of "4 - 5 inspections" in the legend (since '2' < '4'
+# lexicographically), even though HighRisk_b correctly ranks it in the top bin.
+# dest_wb_hr is already arrange(HighRisk_b)'d above, so order of first
+# appearance already reflects the correct numeric order.
+dest_wb_hr = dest_wb_hr |> 
+  dplyr::mutate(bin_label_precise = factor(bin_label_precise, levels = unique(bin_label_precise)))
 
 # Calculate the centroid for each waterbody, add a dot there.
 dest_wb_hr_centr = sf::st_centroid(dest_wb_hr)
 
 # Make palette
 Breaks <- unique(c(dest_wb_hr$jenks_1,dest_wb_hr$jenks_2,dest_wb_hr$jenks_3,dest_wb_hr$jenks_4,dest_wb_hr$jenks_5))
-Labels <- unique(dest_wb_hr$bin_label_precise)
+Labels <- levels(dest_wb_hr$bin_label_precise)
 MyPalette <- c("#4e92e6", "#26e0ce","gold","orange","darkred")
 
 bc_station_view_pushed_north = bc_station_view
@@ -1656,6 +1716,7 @@ map_6_ggplot <- ggplot() +
   geom_sf_text(data = dest_wb_hr, aes(label = GNIS_NA_label),
                color = "black", size = 3, vjust = 1) +
   scale_fill_manual(name = paste0(my.year, " High Risk\nDestination Waterbodies"),
+                    breaks = levels(dest_wb_hr$bin_label_precise),
                     values = MyPalette) +
   ggspatial::annotation_scale(location = "bl") +
   ggthemes::theme_map() +
@@ -2679,7 +2740,8 @@ dat |>
                   select(Description, ais_know_id)) |> 
     #Only keep records that have some kind of previous AIS knowledge.
     filter(!is.na(Description)) |> dplyr::count(Description) |> dplyr::mutate(prop = 100*n / sum(n)) |> 
-  knitr::kable()
+  arrange(desc(prop)) |> 
+  knitr::kable() 
 
 p33 = dat |> 
   rename(ais_know_id = Previous_AIS_Knowledge_Source_Code_ID) |> 

@@ -28,7 +28,7 @@ stations_active = dat |>
   dplyr::filter(n >= 2) |> 
   dplyr::pull(Station)
   
-  stations_active <- c("Lower Mainland", stations_active)
+  #stations_active <- c("Lower Mainland", stations_active)
   stations_active <- c("Sumas (Huntington)", stations_active)
   
 # stations_active <- gsub("Keremeos (Hwy 3)", "Keremeos", stations_active)
@@ -75,11 +75,23 @@ if (my.year == 2025) {
     Station = c(
       "Hwy 97c", "Keremeos", "Greenwood", "Kaleden",
       "Lower Mainland", "Pacific", "Sumas",
-      "Penticton", "Cutts (Hwy 93)","Douglas Crossing"
+      "Penticton", "Cutts (Hwy 93)","Douglas Crossing",
+      "Cascade Border"
     ),
     StationType = "Roving"
   )
 }
+  
+  if (my.year == 2026) {
+    rovers = data.frame(
+      Station = c(
+        "Hwy 97c", "Keremeos", "Greenwood", "Kaleden",
+        "Lower Mainland", "Pacific", "Sumas",
+        "Penticton", "Cutts (Hwy 93)","Douglas Crossing"
+      ),
+      StationType = "Roving"
+    )
+  }
 
 
 # ------------------------------------------------------------------------------
@@ -147,7 +159,14 @@ if (my.year == 2025) {
     "Scheduled Inspection (Cbsa Notification)"
   )
 }
-
+if (my.year == 2026) {
+  rovers_to_drop = c(
+    "Other",
+    "Okanagan",
+    "Scheduled Inspection (Other Notification)",
+    "Scheduled Inspection (Cbsa Notification)"
+  )
+}
 
 # ------------------------------------------------------------------------------
 # Load and clean inspection station spatial data
@@ -210,12 +229,21 @@ stations = stations |>
       station_name == "Sumas Border"          ~ "Sumas (Huntington)",
       station_name == "Lower Mainland Roving" ~ "Lower Mainland",
       station_name == "Peace Arch Crossing"   ~ "Douglas Crossing",
+      station_name == "Cascade Border" ~ "Cascade",
       TRUE ~ station_name
     ),
     station_name = str_replace(
       station_name,
       "Lower Mainland Roving",
       "Lower Mainland"
+    )
+  )
+
+stations = stations |> 
+  mutate(
+    station_type = case_when(
+      station_name == "Cascade" ~ "Part-time Inspection Crew",
+      TRUE ~ station_type
     )
   )
 
@@ -235,6 +263,10 @@ stations_current = stations_current |>
       TRUE ~ station_name
     )
   )
+
+stations_active <-c(stations_active,"Lower Mainland")
+stations_active <-c(stations_active,"Cascade")
+
 
 stations_for_maps = stations_current |> 
   mutate(
@@ -261,7 +293,7 @@ source(
 )
 
 
-# still haveing issues with Sumas - quick fix here
+# still having issues with Sumas - quick fix here
 
 
 
@@ -374,7 +406,8 @@ stations_active_this_year = dat_all |>
 stations_active_this_year = c(
   stations_active_this_year,
   "Radium",
-  "Sumas (Huntington)"
+  "Sumas (Huntington)",
+  "Cascade"
 )
 
 stations[stations$station_name == "Sumas Border", ]$map_label   = "Sumas (Huntington)"
@@ -453,3 +486,6 @@ station_labels_roving = adjust_station_labels(
   stations_roving,
   offsets
 )
+
+
+  

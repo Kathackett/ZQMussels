@@ -2,7 +2,10 @@
 blowb = vroom::vroom(paste0(zqm.operations.folder,"Watercraft Inspection Data/Raw inspection data for sharing (all years)/Clean files all years/metabase_blowby_table_2024_onwards.csv")) |> 
   purrr::set_names(snakecase::to_snake_case) |> 
   dplyr::rename(Workflow_ID = observer_workflow_id) |> 
-  dplyr::mutate(Workflow_ID = as.character(Workflow_ID))
+  dplyr::mutate(Workflow_ID = as.character(Workflow_ID)) |> 
+  dplyr::mutate(blow_by_time = lubridate::mdy_hm(blow_by_time, tz = "UTC") |> 
+                  lubridate::with_tz("America/Vancouver"))
+  
 
 blowb = blowb |> 
   left_join(
@@ -15,7 +18,7 @@ blowb = blowb |>
 
 dat_w_blowbys = dat |> 
   filter(!Station %in% rovers_to_drop) |> 
-  filter(!Station %in% c("Lower Mainland Roving","Penticton Roving")) |> 
+  filter(!Station %in% c("Lower Mainland Roving","Penticton Roving","Cascade")) |> 
   dplyr::filter(Station %in% stations.to.include) |> 
   group_by(Station,Shift_ID,Workflow_ID) |> 
   summarise(NumberInsp = n()) |> 
@@ -36,6 +39,9 @@ dat_w_blowbys = dat |>
   summarise(NumberInsp = sum(NumberInsp),
             Non_Motorized_Blow_Bys_Counter = sum(Non_Motorized_Blow_Bys_Counter),
             Motorized_Blow_Bys_Counter = sum(Motorized_Blow_Bys_Counter)) 
+
+dat_w_blowbys <- dat_w_blowbys |>
+filter(!Station %in% c("Lower Mainland", "Penticton"))
 
 # complicance plot
 p12 = dat_w_blowbys |> 

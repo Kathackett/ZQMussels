@@ -1,0 +1,448 @@
+---
+title: "Summary for Report"
+author: "John Phelan"
+date: "2026-08-07"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+
+library(DT)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(stringr)
+library(tidytext)
+library(purrr)
+
+  source(here::here("02_IMDP_Figure_Generator/utils/initialise_plots.R"))
+
+#What is the sheet name of the destination regions for the mussel fouled tracking sheet?
+if(my.year != 2024){
+  MF_tracker_sheet = "DestRegions"
+}
+if(my.year == 2024){
+  MF_tracker_sheet = "Final List"
+}
+if(my.year == 2025){
+  MF_tracker_sheet = "Query result"
+}
+if(my.year == 2026){
+  MF_tracker_sheet = "Query result"
+}
+
+
+```
+
+```{r loadindata}
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "load_figure_data.R"))
+
+
+dat = dat |> 
+  mutate(Start_Time = as.POSIXct(
+    Start_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  )) |> 
+  mutate(End_Time = as.POSIXct(
+    End_Time * 86400,
+    origin = "1899-12-30",
+    tz = "UTC"
+  ))
+
+
+```
+
+```{r optional_pulling_out_boat_launches_from_comments}
+
+# this is redundant, right?
+source(here::here("02_IMDP_Figure_Generator", "utils", "getting_boat_launch_data.R"))
+```
+
+
+
+```{r change_station_names_and_establish_list_of_rovers}
+
+
+## rename these to be Douglas
+dat <- dat |>
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+        str_detect(Shift_End_Comment, "DFO")
+      ) &
+      as_date(TimeOfInspection) %in% as.Date(c(
+        "2025-07-04", "2025-07-05", "2025-07-06",
+        "2025-07-18", "2025-07-19",
+        "2025-06-27", "2025-06-28",
+        "2025-08-28", "2025-08-29", "2025-08-30"
+      )) &
+      Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+dat_all = dat_all |> 
+  mutate(
+    Station = if_else(
+      (
+        str_detect(Shift_Start_Comment, "DFO") |
+        str_detect(Shift_End_Comment, "DFO")
+      ) &
+      as_date(TimeOfInspection) %in% as.Date(c(
+        "2025-07-04", "2025-07-05", "2025-07-06",
+        "2025-07-18", "2025-07-19",
+        "2025-06-27", "2025-06-28",
+        "2025-08-28", "2025-08-29", "2025-08-30"
+      )) &
+      Station != "Pacific",
+      "Douglas Crossing",
+      Station
+    )
+  )
+
+source(here::here("02_IMDP_Figure_Generator", "utils", "station_manipulation.R"))
+```
+
+```{r 2025_station_changes}
+# This should be elsewhere, but here we are.
+# Douglas is Douglas Crossing, for now. It gets changed later
+
+lw <- dat |>
+  filter(Year == my.year) |>
+  filter(
+    str_detect(
+      Station,
+      "Lower Mainland.*(Outreach|Scheduled Inspection|Roving)|^Lower Mainland$"
+    ),
+    !str_detect(Station, "Douglas|Huntington")
+  )
+
+p_insp <- lw |>
+  mutate(the.month = month(TimeOfInspection, label = TRUE, abbr = FALSE)) |>
+  filter(!(the.month %in% c("March","November") & Year == 2024)) |>
+  group_by(the.month, Station) |>
+  summarise(Number_Insp = n(), .groups = "drop") |>
+  ggplot(aes(x = the.month, y = Number_Insp, fill = Station)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = Number_Insp),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 3
+  ) +
+  theme_classic() +
+  labs(x = "", y = "Watercraft Encounters (# of inspections)") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+p_effort <- lw |>
+  filter(!Station %in% rovers_to_drop) |>
+  mutate(the.month = month(TimeOfInspection, label = TRUE, abbr = FALSE)) |>
+  filter(!(the.month %in% c("March","November") & Year == 2024)) |>
+  select(the.month, Station, Shift_ID, Shift_hours) |>
+  distinct() |>
+  filter(Shift_hours > 0) |>
+  group_by(the.month, Station) |>
+  summarise(TotalEffort = sum(Shift_hours), .groups = "drop") |>
+  ggplot(aes(x = the.month, y = TotalEffort, fill = Station)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = round(TotalEffort, 0)),
+    position = position_dodge(width = 0.7),
+    vjust = -0.3,
+    size = 3
+  ) +
+  theme_classic() +
+  labs(x = "", y = "Total Effort (hours)") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+p5 <- ggarrange(p_insp, p_effort, ncol = 2, nrow = 1)
+
+
+if(!interactive()) {
+  # tmap_save(tm = map_1_tmap, filename = paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Map1_Stations_by_Type.jpg'), width = 7.6, height = 6.4, dpi = 300)
+  ggsave(paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Lower_Mainland_Outreach_Sch.jpg'), p5, width = 7.6, height = 6.4, dpi = 300)
+}
+
+
+# if(!interactive()) {
+#   # tmap_save(tm = map_1_tmap, filename = paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Map1_Stations_by_Type.jpg'), width = 7.6, height = 6.4, dpi = 300)
+#   ggsave(paste0(my.external.output.folder,'/GIS Maps and Excel Figures/ExcelFigures/Penticton_Outreach_Sch.jpg'), p5, width = 7.6, height = 6.4, dpi = 300)
+# }
+
+
+### Okay lets fix some names
+
+dat = dat |> 
+  mutate(Station = case_when(
+      Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      TRUE ~ Station
+  ))
+
+dat_all = dat_all |> 
+  mutate(Station = case_when(
+      Station == "Lower Mainland Roving - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Douglas"      ~ "Douglas Crossing",
+      Station == "Lower Mainland - Huntington"      ~ "Sumas (Huntington)",
+      Station == "Lower Mainland - Scheduled Inspection"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Outreach"      ~ "Lower Mainland",
+      Station == "Lower Mainland Roving - Huntington"      ~ "Sumas (Huntington)",
+      TRUE ~ Station
+  ))
+
+
+
+```
+
+
+
+```{r dat_to_stations}
+source(here::here("02_IMDP_Figure_Generator", "utils", "dat_to_stations.R"))
+```
+
+
+```{r find_Douglas}
+
+blank_comments <- dat |>
+  filter(str_detect(Station, "Other|Emergency|Project|Lower Mainland - Scheduled Inspection|Lower Mainland Roving - Scheduled Inspection|Lower Mainland Roving - Douglas|Lower Mainland - Douglas"))
+
+
+## These are the Peace Arch
+dfo_comments = dat |>
+  filter(str_detect(Shift_Start_Comment, "DFO")|
+         str_detect(Shift_End_Comment, "DFO")) |>
+  filter(as_date(TimeOfInspection) %in% as.Date(c(
+    "2025-07-04",
+    "2025-07-05",
+    "2025-07-06",
+    "2025-07-18",
+    "2025-07-19",
+    "2025-06-27",
+    "2025-06-28",
+    "2025-08-28",
+    "2025-08-29",
+    "2025-08-30"
+
+
+
+  ))) |>
+  filter(Station != "Pacific")
+
+
+
+
+
+## The dates are 4 5 6 18 19 July 27 28 Jun
+
+douglas_dates <- blank_comments |>
+  filter(as_date(TimeOfInspection) %in% as.Date(c(
+    "2025-07-04",
+    "2025-07-05",
+    "2025-07-06",
+    "2025-07-18",
+    "2025-07-19",
+    "2025-06-27",
+    "2025-06-28",
+    "2025-08-28",
+    "2025-08-29",
+    "2025-08-30"
+
+
+
+  )))
+
+
+# datatable(
+#   douglas_dates |>
+#     select(Station, Watercraft_Risk_Assessment_ID, MusselsFound_Ind, High_Risk_AIS_Ind,
+#            High_Risk_Area_Ind, Start_Time, End_Time, TimeOfInspection,Shift_Start_Comment, Shift_End_Comment,
+#            General_Comment),
+#   options = list( pageLength = 10, scrollX = T, autowidth = T),
+#   rownames = F
+# )
+
+## For those dates - lets set the location to Douglas!
+
+
+```
+
+```{r compare_years}
+
+
+
+by_stations <- dat_all |>
+  filter(Year %in% c(2023, 2024, 2025)) |>
+  count(Station, Year, name = "count") |>
+  pivot_wider(
+    names_from = Year,
+    values_from = count,
+    values_fill = 0
+  ) |>
+  arrange(desc(`2025`))
+
+by_stations |>
+  kable(
+    col.names = c("Station", "2023", "2024", "2025"),
+    caption = "Number of records by station and year"
+  )
+missing_stations = dat_all |> 
+  filter(Year == 2025) |> 
+  filter(is.na(Station))
+
+
+known_stations <- dat_all |> 
+  filter(Year == 2025) |> 
+  filter(!is.na(Station), Station != "") |> 
+  distinct(Station) |> 
+  pull(Station)
+
+
+```
+
+```{r missing_stations}
+
+## for each missing station, look at the comments and see if we can get enough information about the records to get a station name - or an idea of location that we can assign.
+#unique(test$General_Comment)
+#unique(test$Shift_Start_Comment)
+
+
+
+
+
+```
+
+```{r setup-missing-stations}
+
+
+missing_stations <- dat_all |> 
+  filter(Year == 2025) |> 
+  filter(is.na(Station))
+
+known_stations <- dat_all |> 
+  filter(Year == 2025) |> 
+  filter(!is.na(Station), Station != "") |> 
+  distinct(Station) |> 
+  pull(Station)
+```
+
+<!-- Descriptor: how many 2025 records are missing a station, as context for what follows -->
+
+```{r check-known-station-names-in-comments}
+comment_has_known_station <- function(text, stations) {
+  if (is.na(text) || text == "") return(FALSE)
+  any(str_detect(text, regex(stations, ignore_case = TRUE)))
+}
+
+missing_stations <- missing_stations |> 
+  rowwise() |> 
+  mutate(
+    station_in_general = comment_has_known_station(General_Comment, known_stations),
+    station_in_shift    = comment_has_known_station(Shift_Start_Comment, known_stations)
+  ) |> 
+  ungroup()
+
+sum(missing_stations$station_in_general, na.rm = TRUE)
+sum(missing_stations$station_in_shift, na.rm = TRUE)
+```
+
+<!-- Descriptor: confirms whether known station names ever appear directly in the free-text comments -->
+
+```{r prep-comment-text}
+comments_long <- missing_stations |> 
+  select(General_Comment, Shift_Start_Comment) |> 
+  pivot_longer(everything(), names_to = "comment_field", values_to = "text") |> 
+  filter(!is.na(text), text != "")
+
+comments_long |> count(comment_field)
+```
+
+```{r word-frequency}
+word_freq <- comments_long |> 
+  unnest_tokens(word, text) |> 
+  anti_join(stop_words, by = "word") |> 
+  count(word, sort = TRUE)
+
+word_freq
+```
+
+<!-- Plot placeholder: word_freq bar chart of top n words -->
+```{r plot-word-frequency, fig.cap="Most frequent words in comments on records with a missing station"}
+word_freq |> 
+  slice_max(n, n = 20) |> 
+  ggplot(aes(x = reorder(word, n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = NULL, y = "Count")
+```
+
+```{r bigram-frequency}
+bigram_freq <- comments_long |> 
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) |> 
+  separate(bigram, into = c("w1", "w2"), sep = " ") |> 
+  filter(!w1 %in% stop_words$word, !w2 %in% stop_words$word) |> 
+  unite(bigram, w1, w2, sep = " ") |> 
+  count(bigram, sort = TRUE)
+
+head(bigram_freq, 40)
+```
+
+<!-- Plot placeholder: bigram_freq bar chart -->
+```{r plot-bigram-frequency, fig.cap="Most frequent two-word phrases in comments on records with a missing station"}
+bigram_freq |> 
+  slice_max(n, n = 20) |> 
+  ggplot(aes(x = reorder(bigram, n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = NULL, y = "Count")
+```
+
+```{r extract-shift-times}
+time_pattern <- regex("\\b\\d{1,2}:?\\d{2}\\s?(am|pm)?\\b", ignore_case = TRUE)
+
+missing_stations <- missing_stations |> 
+  mutate(
+    times_in_general = str_extract_all(General_Comment, time_pattern),
+    times_in_shift    = str_extract_all(Shift_Start_Comment, time_pattern)
+  )
+```
+
+<!-- Descriptor: pulls out any shift-time mentions for later cross-referencing -->
+
+```{r extract-names}
+name_pattern <- regex("\\b[A-Z][a-z]+\\s[A-Z][a-z]+\\b")
+
+extract_names <- function(text) {
+  if (is.na(text) || text == "") return(NA_character_)
+  hits <- str_extract_all(text, name_pattern)[[1]]
+  if (length(hits) == 0) return(NA_character_)
+  paste(unique(hits), collapse = "; ")
+}
+
+missing_stations <- missing_stations |> 
+  rowwise() |> 
+  mutate(
+    name_from_general = extract_names(General_Comment),
+    name_from_shift    = extract_names(Shift_Start_Comment),
+    extracted_name = coalesce(name_from_general, name_from_shift)
+  ) |> 
+  ungroup()
+
+missing_stations |> summarise(n_with_name = sum(!is.na(extracted_name)), total = n())
+```
+
+<!-- Descriptor: candidate personal names extracted via Title-Case regex; review before trusting -->
+
+```{r review-extracted-names}
+missing_stations |> 
+  filter(!is.na(extracted_name)) |> 
+  count(extracted_name, sort = TRUE)
+```

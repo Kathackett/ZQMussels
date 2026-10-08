@@ -15,38 +15,45 @@ station_labels = tibble(name = c('Olsen','Osoyoos','Pacific'),
 # mostly, Penticton Roving and Fraser Valley Roving.
 # Apply the detailed Station recoding logic
 boatlaunch_dat <- dat %>%
+  dplyr::mutate(
+    Comment_Combined = stringr::str_c(
+      dplyr::coalesce(Shift_Start_Comment, ""),
+      " ",
+      dplyr::coalesce(General_Comment, "")
+    )
+  ) %>%
   dplyr::mutate(Station = dplyr::case_when(
     # 1. Scheduled Inspections / Decons
-    Station %in% c("Fraser Valley Roving","Penticton Roving") & str_detect(Shift_Start_Comment, '([iI]nspection|[dD]econ|[dD]eacon|Deco|[sS]cheduled)') ~ 'Scheduled Inspection/Decontamination',
-    Station == 'Scheduled Inspection' & str_detect(Shift_Start_Comment,"([r,R]ichmond|[d,D]ockside)") ~ 'Lower Mainland Scheduled Inspection',
-    Station == 'Scheduled Inspection' & str_detect(Shift_Start_Comment,"([l,L]ake [c,C]ountry|[l,L]akehouse|Martin|martin|MARTIN|[p,P]enticton|[k,K]elowna)") ~ 'Penticton Scheduled Inspection',
+    Station %in% c("Fraser Valley Roving","Penticton", "Other") & str_detect(Comment_Combined, '([iI]nspection|[dD]econ|[dD]eacon|Deco|[sS]cheduled)') ~ 'Scheduled Inspection/Decontamination',
+    Station == 'Scheduled Inspection' & str_detect(Comment_Combined,"([r,R]ichmond|[d,D]ockside)") ~ 'Lower Mainland Scheduled Inspection',
+    Station == 'Scheduled Inspection' & str_detect(Comment_Combined,"([l,L]ake [c,C]ountry|[l,L]akehouse|Martin|martin|MARTIN|[p,P]enticton|[k,K]elowna)") ~ 'Penticton Scheduled Inspection',
     
     # 2. Multiple boat launches visited
-    str_detect(Shift_Start_Comment,"([kK]ekuli|[kK]akuli).*([gG]elatley|[gG]ellatley)") ~ 'Multiple',
-    str_detect(Shift_Start_Comment,"([gG]elatley|[gG]ellatley).*([kK]ekuli|[kK]akuli)") ~ 'Multiple',
-    str_detect(Shift_Start_Comment,"Skaha") & str_detect(Shift_Start_Comment,"summerland")~ "Boat Launch - Multiple",
+    str_detect(Comment_Combined,"([kK]ekuli|[kK]akuli).*([gG]elatley|[gG]ellatley)") ~ 'Multiple',
+    str_detect(Comment_Combined,"([gG]elatley|[gG]ellatley).*([kK]ekuli|[kK]akuli)") ~ 'Multiple',
+    str_detect(Comment_Combined,"Skaha") & str_detect(Comment_Combined,"summerland")~ "Boat Launch - Multiple",
     
     # 3. Single boat launch visited
-    str_detect(Shift_Start_Comment,".*kabuki bay.*Eldorado") ~ 'Boat Launch - Okanagan Lake',
-    str_detect(Shift_Start_Comment,"([kK]ekuli|[kK]akuli)") ~ 'Boat Launch - Kekuli Bay',
-    str_detect(Shift_Start_Comment,"([gG]ellatly|[gG]ellatley)") ~ 'Boat Launch - Gellatly Bay',
-    str_detect(Shift_Start_Comment,"([cC]ultus)") ~ 'Boat Launch - Cultus Lake',
-    str_detect(Shift_Start_Comment,"([aA]l(l)?ouette)") ~ 'Boat Launch - Alouette Lake',
-    str_detect(Shift_Start_Comment,"([sS]tave)") ~ 'Boat Launch - Stave Lake',
-    str_detect(Shift_Start_Comment,"([kK]awkawa)") ~ 'Boat Launch - Kawkawa Lake',
-    str_detect(Shift_Start_Comment,"[cC]hristina") ~ "Boat Launch - Christina Lake",
+    str_detect(Comment_Combined,".*kabuki bay.*Eldorado") ~ 'Boat Launch - Okanagan Lake',
+    str_detect(Comment_Combined,"([kK]ekuli|[kK]akuli)") ~ 'Boat Launch - Kekuli Bay',
+    str_detect(Comment_Combined,"([gG]ellatly|[gG]ellatley)") ~ 'Boat Launch - Gellatly Bay',
+    str_detect(Comment_Combined,"([cC]ultus)") ~ 'Boat Launch - Cultus Lake',
+    str_detect(Comment_Combined,"([aA]l(l)?ouette)") ~ 'Boat Launch - Alouette Lake',
+    str_detect(Comment_Combined,"([sS]tave)") ~ 'Boat Launch - Stave Lake',
+    str_detect(Comment_Combined,"([kK]awkawa)") ~ 'Boat Launch - Kawkawa Lake',
+    str_detect(Comment_Combined,"[cC]hristina") ~ "Boat Launch - Christina Lake",
     Station == 'Christina Lake' ~ 'Boat Launch - Christina Lake',
-    str_detect(Shift_Start_Comment,"[sS]kaha") ~ "Boat Launch - North Skaha",
-    str_detect(Shift_Start_Comment,"[pP]each") ~ "Boat Launch - Peachland Yacht Club",
-    str_detect(Shift_Start_Comment,"(Summerland|summer( )?land|Summer( )?[lL]and)") ~ "Boat Launch - Summerland",
+    str_detect(Comment_Combined,"[sS]kaha") ~ "Boat Launch - North Skaha",
+    str_detect(Comment_Combined,"[pP]each") ~ "Boat Launch - Peachland Yacht Club",
+    str_detect(Comment_Combined,"(Summerland|summer( )?land|Summer( )?[lL]and)") ~ "Boat Launch - Summerland",
     
     # Generic boat launch mention
-    str_detect(Shift_Start_Comment,"[bB]oat( )?[lL]aunch") ~ 'Boat Launch',
+    str_detect(Comment_Combined,"[bB]oat( )?[lL]aunch") ~ 'Boat Launch',
     
     # Other specific stations
-    str_detect(Shift_Start_Comment, '(hwy|Hwy)?( )?97( )?[cC]') ~ 'Penticton 97C',
-    str_detect(Shift_Start_Comment, '(hwy|Hwy)( )?3') ~ 'Hwy 3',
-    str_detect(Shift_Start_Comment, '[kK]eremeos') ~ 'Keremeos (Hwy 3)',
+    str_detect(Comment_Combined, '(hwy|Hwy)?( )?97( )?[cC]') ~ 'Penticton 97C',
+    str_detect(Comment_Combined, '(hwy|Hwy)( )?3') ~ 'Hwy 3',
+    str_detect(Comment_Combined, '[kK]eremeos') ~ 'Keremeos (Hwy 3)',
     
     TRUE ~ Station
   ))
@@ -75,3 +82,6 @@ boatlaunch_dat_count <- boatlaunch_dat %>%
 
 boatlaunch_dat_count <- boatlaunch_dat_count |> 
   filter(likely_lake != "Unknown Location")
+
+
+###################################################################

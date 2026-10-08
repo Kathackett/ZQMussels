@@ -1,7 +1,8 @@
 ---
-title: "01_Golden_Mussel_Survival_Probability_Assessment"
+title: "Golden Mussel Establishment Assessment"
 author: "John Phelan"
 date: "`r Sys.Date()`"
+bibliography: "C:/Users/JPHELAN/Documents/My Library.bib"
 output: html_document
 ---
 
@@ -59,7 +60,7 @@ if(!dir.exists(paste0(getwd(),"/output/"))) {
 }
 ```
 
-```{r load_in_shapefiles}
+```{r load_in_shapefiles, fig.width=8, fig.height=8}
 # BC shapefile
 bc_shp = bcmaps::bc_bound() %>% 
   st_transform(crs = 4326) |> 
@@ -78,10 +79,10 @@ bio10_filepath <- file.path(data.path, bio10_filename)
 
 # WorldClim future temperature raster data. 
 if(my_opts$zqm_risk_climate_model == "ssp245"){
-  tempr <- rast(paste0("../01_DataCleaning/data/wc2.1_2.5m_bioc_MRI-ESM2-0_ssp245_2021-2040.tif"), lyrs = 10)
+  tempr <- rast(paste0("./01_DataCleaning/data/wc2.1_2.5m_bioc_MRI-ESM2-0_ssp245_2021-2040.tif"), lyrs = 10)
   tempr = mask(crop(tempr, bc_shp), vect(bc_shp))
 } else if(my_opts$zqm_risk_climate_model == "ssp370"){
-  tempr <- rast(paste0("../01_DataCleaning/data/wc2.1_2.5m_bioc_MRI-ESM2-0_ssp370_2021-2040.tif"), lyrs = 10)
+  tempr <- rast(paste0("./01_DataCleaning/data/wc2.1_2.5m_bioc_MRI-ESM2-0_ssp370_2021-2040.tif"), lyrs = 10)
   tempr = mask(crop(tempr, bc_shp), vect(bc_shp))
 }
 
@@ -90,10 +91,21 @@ ems_path = paste0(my_opts$base_dir, "../../long_term_projects/AIS_EMS/output/EMS
 conn = dbConnect(SQLite(), ems_path)
 df = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Calcium %' or PARAMETER like 'pH'")
 # ems_temp = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Temperature%'")
-DBI::dbDisconnect(conn)
+df = df |>
+  dplyr::filter(LOCATION_TYPE %in% c("DITCH OR CULVERT","LAKE OR POND","MONITORING WELL","PROVINCIAL OBS WELL NETWORK","RIVER,STREAM OR CREEK"))
 
 #Get rid of columns 29 to 60, which we do not need.
 df = df[,c(1:28)]
+
+# library(viridis)
+# 
+# par(mar = c(5.1, 4.1, 6.1, 2.1))
+# 
+# plot(
+#   tempr,
+#   col = viridis(100),
+#   main = "Air Temp in BC - WorldClim SSP245 2021-2040\nTemp > 15 °C for Golden Mussel Reproduction"
+# )
 
 ```
 
@@ -112,7 +124,60 @@ df = df |>
   dplyr::mutate(COLLECTION_START = lubridate::ymd_hms(COLLECTION_START),
                 COLLECTION_END = lubridate::ymd_hms(COLLECTION_END))
 
-hist(lubridate::year(df$COLLECTION_END)) #What's the distribution of data through time?
+yrs <- lubridate::year(df$COLLECTION_END)
+
+df_calc = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'Calcium %'") |> 
+  dplyr::filter(LOCATION_TYPE %in% c("DITCH OR CULVERT","LAKE OR POND","MONITORING WELL","PROVINCIAL OBS WELL NETWORK","RIVER,STREAM OR CREEK"))
+
+df_ph = DBI::dbGetQuery(conn, "SELECT * FROM results where PARAMETER like 'pH'") |> 
+  dplyr::filter(LOCATION_TYPE %in% c("DITCH OR CULVERT","LAKE OR POND","MONITORING WELL","PROVINCIAL OBS WELL NETWORK","RIVER,STREAM OR CREEK"))
+
+DBI::dbDisconnect(conn)
+
+
+df_calc = df_calc |> 
+  dplyr::filter(!is.na(LATITUDE),
+                !is.na(LONGITUDE)) |> 
+  dplyr::filter(!(is.na(COLLECTION_START) & is.na(COLLECTION_END)))
+
+# Clean up date columns!
+df_calc = df_calc |> 
+  dplyr::mutate(COLLECTION_START = lubridate::ymd_hms(COLLECTION_START),
+                COLLECTION_END = lubridate::ymd_hms(COLLECTION_END))
+
+yrs <- lubridate::year(df_calc$COLLECTION_END)
+
+
+hist(
+  yrs,
+  breaks = seq(min(yrs, na.rm = TRUE) - 0.5,
+               max(yrs, na.rm = TRUE) + 0.5,
+               by = 1),
+  main = "No. of records of Calcium per year in BC",
+  xlab = "Year"
+)#What's the distribution of data through time?
+
+df_ph = df_ph |> 
+  dplyr::filter(!is.na(LATITUDE),
+                !is.na(LONGITUDE)) |> 
+  dplyr::filter(!(is.na(COLLECTION_START) & is.na(COLLECTION_END)))
+
+# Clean up date columns!
+df_ph = df_ph |> 
+  dplyr::mutate(COLLECTION_START = lubridate::ymd_hms(COLLECTION_START),
+                COLLECTION_END = lubridate::ymd_hms(COLLECTION_END))
+
+yrs <- lubridate::year(df_ph$COLLECTION_END)
+
+hist(
+  yrs,
+  breaks = seq(min(yrs, na.rm = TRUE) - 0.5,
+               max(yrs, na.rm = TRUE) + 0.5,
+               by = 1),
+  main = "No. of records of pH per year in BC",
+  xlab = "Year"
+)#What's the distribution of data through time?
+
 ```
 
 ```{r read_in_wb_and_subw_shapefiles}
@@ -120,6 +185,42 @@ hist(lubridate::year(df$COLLECTION_END)) #What's the distribution of data throug
 waterbodies = read_sf(paste0(my_opts$base_dir,"/01_DataCleaning/data/summarized_bc_waterbodies_same_gnis_joined.gpkg"))
 # Read in subwatershed (N = 246) shapefile
 watershed = read_sf(paste0(my_opts$remote_spatial_data,"shared_data_sets/WatershedGroups_lowres.shp"))
+
+library(patchwork)
+
+bc_shp <- st_set_crs(bc_shp, 4326)
+
+keep <- st_intersects(waterbodies, st_transform(bc_shp, 3005), sparse = FALSE)
+waterbodies <- waterbodies[keep, ]
+
+p1 <- ggplot() +
+  geom_sf(
+    data = waterbodies,
+    fill = "#4C9BE8",
+    colour = "#1F4E79",
+    linewidth = 0.15,
+    alpha = 0.8
+  ) +
+  labs(title = "BC Waterbodies") +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+p2 <- ggplot() +
+  geom_sf(
+    data = watershed,
+    fill = "white",
+    colour = "darkgrey",
+    linewidth = 0.2
+  ) +
+  labs(title = "BC Subwatersheds") +
+  theme_void() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+# p1 + p2
 ```
 
 ```{r save_snapshot_of_calcium_averaged_at_the_waterbody_scale}
@@ -329,6 +430,8 @@ ggsave(filename = '01_DataCleaning/output/mean_calcium_by_subwatershed_group.png
 
 ## pH Suitability 
 
+Golden mussel can tolerate and reproduce in pH between 5 - 10, but is impacted by low salinities [@mackie_risk_2017]. There are multiple reports of ph >= 6 within the suitable range for reproduction [@boltovskoy_parallels_2015].  
+
 ```{r pH_in_ideal_ZQ_conditions}
 pH_within_ideal_ZQ_range = mean_pH_by_subw |> 
   dplyr::mutate(ideal_conditions = mean_pH >= 6 & mean_pH <= 9)
@@ -362,14 +465,17 @@ watershed = watershed %>%
 ```
 
 ## Temperature Correction Map
+
+Temperature is deemed to be the limiting factor for golden mussel, as other environmental conditions (pH, calcium, alkalinity) are not limiting to its establishment. Reproduction is noted to cease when water temperatures drop below 15 °C [@oliveira_modeling_2010].
+
 ```{r temp_correction_map}
 my_plot = ggplot() +
   geom_sf(data = watershed, col = "black", aes(fill = temp_group)) +
   scale_fill_manual(values = c("< 15" = "red",
-                               "> 15" = "transparent")) +
+                               ">= 15" = "transparent")) +
   annotation_scale(location = "br", width_hint = 0.5) +
   theme_map() +
-  labs(fill = "Air Temperature (C)")
+  labs(fill = "Air Temperature (\u00B0C)")
 
 my_plot
 
@@ -385,6 +491,9 @@ watershed = watershed |>
     mean_pH_by_subw
   )
 ```
+
+
+
 
 ```{r bin_calcium_values}
 
@@ -419,6 +528,8 @@ watershed = watershed |>
 
 ## Mean Calcium Bins
 
+Golden mussel is tolerant of low calcium, surviving 1 mg/l [@mackie_risk_2017]. 
+
 ```{r mean_calcium_binned_by_subwatershed}
 ggplot(watershed) +
   geom_sf(aes(fill = calc_bin), col = "black") +
@@ -442,6 +553,8 @@ write_sf(watershed,
 ```
 
 ## Mean Calcium Bins, pH Adjusted
+
+This step finds those subwatersheds that have non-ideal pH and reduces the category of calcium noted in the previous step by one level if it is in a non-suitable location.
 
 ```{r mean_calcium_binned_and_reduced_by_pH_by_subwatershed}
 
@@ -481,6 +594,8 @@ ggsave(filename = '01_DataCleaning/output/Binned_Mean_Calcium_pH_Adjusted_by_sub
 ```
 
 ## Mean Calcium Bins, pH and Temperature Adjusted
+
+Again, if the temperature is not suitable, the risk category for the subwatershed is reduced by one level.
 
 ```{r mean_calcium_binned_and_reduced_by_pH_reduced_by_low_temps_by_subwatershed}
 
@@ -540,3 +655,6 @@ write_sf(watershed,
 #          paste0(mywd,"/output/ZQM_RiskAssessment_",my_opts$zqm_risk_climate_model,"_",
 #                 temp_limit,"C_threshold_Subwatershed.gpkg"))
 ```
+
+
+# References
